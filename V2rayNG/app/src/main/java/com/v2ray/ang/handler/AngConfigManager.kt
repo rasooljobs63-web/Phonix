@@ -186,6 +186,22 @@ object AngConfigManager {
      * @return A pair containing the number of configurations and subscriptions imported.
      */
     fun importBatchConfig(server: String?, subid: String, append: Boolean): Pair<Int, Int> {
+        // Phonix: only subscription links of the allowed domain are taken; anything else pasted or scanned is dropped.
+        val allowed = PhonixPolicy.allowedSubLines(server) ?: return 0 to 0
+        return importBatchConfigUnrestricted(allowed, subid, append)
+    }
+
+    /** Phonix: imports one link the app itself made, the built-in Aether profile. */
+    internal fun importTrustedLink(link: String): Boolean {
+        return try {
+            parseBatchConfig(link, "", true) > 0
+        } catch (e: ProfileStorageException) {
+            LogUtil.e(AppConfig.TAG, "Failed to store the built-in profile", e)
+            false
+        }
+    }
+
+    private fun importBatchConfigUnrestricted(server: String?, subid: String, append: Boolean): Pair<Int, Int> {
         return try {
             var count = parseBatchConfig(Utils.decode(server), subid, append)
             if (count <= 0) {
@@ -496,6 +512,13 @@ object AngConfigManager {
                 return SubscriptionUpdateResult(skipCount = 1)
             }
 
+            // Phonix: a subscription of any other domain is never fetched, whatever was stored.
+            if (!PhonixPolicy.isAllowedSubUrl(it.subscription.url)) {
+                LogUtil.w(AppConfig.TAG, "Subscription refused: its domain is not allowed")
+                return SubscriptionUpdateResult(failureCount = 1)
+            }
+            PhonixPolicy.ensureChain(it.guid, it.subscription)
+
             val url = HttpUtil.toIdnUrl(it.subscription.url)
             if (!Utils.isValidUrl(url)) {
                 return SubscriptionUpdateResult(failureCount = 1)
@@ -572,6 +595,7 @@ object AngConfigManager {
                     return SubscriptionUpdateResult(skipCount = 1)
                 }
                 LogUtil.i(AppConfig.TAG, "Subscription updated: ${it.subscription.remarks}, $count configs")
+                PhonixPolicy.ensureSelection(it.guid)
                 return SubscriptionUpdateResult(
                     configCount = count,
                     successCount = 1
@@ -646,8 +670,12 @@ object AngConfigManager {
         }
         val uri = URI(Utils.fixIllegalUrl(url))
         val subItem = SubscriptionItem()
-        subItem.remarks = uri.fragment ?: "import sub"
+        subItem.remarks = uri.fragment ?: "Phonix"
         subItem.url = url
+        // Phonix: updated by itself, and behind the Aether profile from the start.
+        subItem.autoUpdate = true
+        subItem.updateInterval = 180
+        subItem.prevProfile = PhonixPolicy.AETHER_NAME
         // PattNG: stored and listed in one hold of the profile index lock, checked; a refusal is logged there.
         return if (MmkvManager.tryEncodeSubscription("", subItem) != null) 1 else 0
     }

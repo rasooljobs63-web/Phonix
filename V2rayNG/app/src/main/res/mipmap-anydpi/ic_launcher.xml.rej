@@ -1,0 +1,12 @@
+--- V2rayNG/app/src/main/res/mipmap-anydpi/ic_launcher.xml	2026-10-25 02:18:24.000000000 +0000
++++ V2rayNG/app/src/main/res/mipmap-anydpi/ic_launcher.xml	2026-10-31 16:33:38.731093918 +0000
+@@ -1,6 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+-    <background android:drawable="@mipmap/ic_launcher_bg" />
+-    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+-    <monochrome android:drawable="@mipmap/ic_launcher_foreground" />
+-</adaptive-icon>+    <background android:drawable="@drawable/ic_phonix_background" />
++    <foreground android:drawable="@drawable/ic_phonix_foreground" />
++    <monochrome android:drawable="@drawable/ic_phonix_foreground" />
++</adaptive-icon>

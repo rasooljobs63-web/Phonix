@@ -163,6 +163,48 @@ object CoreServiceManager {
         currentVpnInterface = vpnInterface
         launchCore(service, vpnInterface)
         startNetworkMonitor(service)
+        PhonixFailover.start(probe = { probeConnection() }, switchTo = { guid -> switchServerTo(guid) })
+    }
+
+    /**
+     * Phonix: whether the running connection works, by the delay test the main screen uses. True also when the test
+     * cannot judge: a reload or a warm-up under way, an Aether core that does not listen, or no network underneath.
+     */
+    private suspend fun probeConnection(): Boolean {
+        val service = getService() ?: return true
+        if (!isRunning() || isReloading || isAetherWarmingUp()) return true
+        if (!hasValidatedUnderlyingNetwork(service)) return true
+        if (currentAether != null && !AetherCoreManager.awaitListening(AetherDelayTester.TEST_BUDGET_MS)) return true
+        for (second in listOf(false, true)) {
+            val time = try {
+                coreController.measureDelay(SettingsManager.getDelayTestUrl(second))
+            } catch (e: Exception) {
+                -1L
+            }
+            if (time >= 0L) return true
+        }
+        return false
+    }
+
+    private fun hasValidatedUnderlyingNetwork(service: Service): Boolean {
+        val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+        return connectivity.allNetworks.any { network ->
+            val caps = connectivity.getNetworkCapabilities(network) ?: return@any false
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                && !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)
+        }
+    }
+
+    /** Phonix: selects [guid] and restarts the service on it, as a restart asked for does. */
+    private fun switchServerTo(guid: String) {
+        val control = serviceControl?.get() ?: return
+        MmkvManager.setSelectServer(guid)
+        CoroutineScope(Dispatchers.Default).launch {
+            control.stopService()
+            kotlinx.coroutines.delay(500L)
+            LauncherManager.startService(control.getService())
+        }
     }
 
     /**
@@ -423,6 +465,7 @@ object CoreServiceManager {
      * @return True if the core was stopped successfully, false otherwise.
      */
     fun stopCoreLoop(): Boolean {
+        PhonixFailover.stop()
         connectionTestScope.coroutineContext.cancelChildren()
         val service = getService() ?: return false
 
