@@ -504,6 +504,11 @@ object AngConfigManager {
                 return SubscriptionUpdateResult(skipCount = 1)
             }
 
+            // Phonix: the default group has no link; it is not a subscription, so nothing is skipped
+            if (it.subscription.url.isBlank()) {
+                return SubscriptionUpdateResult()
+            }
+
             // Validate subscription info
             if (TextUtils.isEmpty(it.guid)
                 || TextUtils.isEmpty(it.subscription.remarks)
@@ -595,7 +600,7 @@ object AngConfigManager {
                     return SubscriptionUpdateResult(skipCount = 1)
                 }
                 LogUtil.i(AppConfig.TAG, "Subscription updated: ${it.subscription.remarks}, $count configs")
-                PhonixPolicy.ensureSelection(it.guid)
+                com.v2ray.ang.core.PhonixProvisioner.kick()
                 return SubscriptionUpdateResult(
                     configCount = count,
                     successCount = 1
@@ -672,10 +677,10 @@ object AngConfigManager {
         val subItem = SubscriptionItem()
         subItem.remarks = uri.fragment ?: "Phonix"
         subItem.url = url
-        // Phonix: updated by itself, and behind the Aether profile from the start.
+        // Phonix: updated by itself.
         subItem.autoUpdate = true
         subItem.updateInterval = 180
-        subItem.prevProfile = PhonixPolicy.AETHER_NAME
+        subItem.userAgent = PhonixPolicy.SUB_USER_AGENT
         // PattNG: stored and listed in one hold of the profile index lock, checked; a refusal is logged there.
         return if (MmkvManager.tryEncodeSubscription("", subItem) != null) 1 else 0
     }

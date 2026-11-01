@@ -81,8 +81,9 @@ object LauncherManager {
         // Note: isRunning check is removed here to avoid loading Native libraries in the UI process.
         // The check is performed in CoreServiceManager when the service starts in the daemon process.
 
-        // Phonix: every subscription goes behind the Aether profile before a start.
+        // Phonix: no subscription is in a proxy chain, and the Aether profile never dials out on its own.
         com.v2ray.ang.handler.PhonixPolicy.ensureChainForAllSubs()
+        val exitNodeReady = com.v2ray.ang.handler.PhonixPolicy.ensureExitNode()
 
         val guid = MmkvManager.getSelectServer()
             ?: run {
@@ -95,6 +96,10 @@ object LauncherManager {
                 LogUtil.e(AppConfig.TAG, "LauncherManager: Failed to decode server config")
                 error(context.getString(R.string.toast_config_file_invalid))
             }
+
+        if (config.configType == com.v2ray.ang.enums.EConfigType.AETHER && !exitNodeReady) {
+            error("Phonix: the subscription has no server to connect through")
+        }
 
         if (!hasUsableServer(config)) {
             LogUtil.e(AppConfig.TAG, "LauncherManager: Invalid server configuration")

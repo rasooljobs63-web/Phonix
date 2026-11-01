@@ -96,6 +96,9 @@ class MainActivity : HelperBaseComponentActivity() {
         super.onCreate(savedInstanceState)
         mainViewModel.onAction(MainAction.Initialize)
 
+        // Phonix: sets the Aether profile up, when it is not yet, for a subscription already there.
+        com.v2ray.ang.core.PhonixProvisioner.kick()
+
         checkAndRequestPermission(PermissionType.POST_NOTIFICATIONS) {}
     }
 

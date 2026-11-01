@@ -163,7 +163,7 @@ object CoreServiceManager {
         currentVpnInterface = vpnInterface
         launchCore(service, vpnInterface)
         startNetworkMonitor(service)
-        PhonixFailover.start(probe = { probeConnection() }, switchTo = { guid -> switchServerTo(guid) })
+        PhonixFailover.start(probe = { probeConnection() }, restart = { restartForFailover() })
     }
 
     /**
@@ -196,10 +196,9 @@ object CoreServiceManager {
         }
     }
 
-    /** Phonix: selects [guid] and restarts the service on it, as a restart asked for does. */
-    private fun switchServerTo(guid: String) {
+    /** Phonix: restarts the service on the selected profile, as a restart asked for does. */
+    private fun restartForFailover() {
         val control = serviceControl?.get() ?: return
-        MmkvManager.setSelectServer(guid)
         CoroutineScope(Dispatchers.Default).launch {
             control.stopService()
             kotlinx.coroutines.delay(500L)

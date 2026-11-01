@@ -30,7 +30,8 @@ internal fun ExitNodeField(
         label = stringResource(R.string.aether_lab_exit_node),
         // The label the list gives the name, which tells it from freedom and from another name's label.
         value = if (name.isEmpty()) freedom else labels.getOrNull(names.indexOf(name)) ?: name,
-        options = listOf(freedom) + labels,
+        // Phonix: the core never dials out on its own; freedom is offered only while there is no server to pick
+        options = if (labels.isEmpty()) listOf(freedom) else labels,
         onValueChange = { picked ->
             if (picked == freedom) {
                 onValueChange("")

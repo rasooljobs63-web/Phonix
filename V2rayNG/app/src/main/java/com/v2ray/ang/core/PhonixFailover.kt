@@ -1,8 +1,9 @@
 package com.v2ray.ang.core
 
 import com.v2ray.ang.AppConfig
-import com.v2ray.ang.extension.isComplexType
+import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.handler.MmkvManager
+import com.v2ray.ang.handler.PhonixPolicy
 import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,10 +14,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Phonix: watches the running connection and, when the selected config of a subscription stops working,
- * switches to the next config of the same subscription that works (best known delay first).
+ * Phonix: watches the running connection and, when the exit server of the Aether profile stops working, gives the
+ * profile the next server of the subscription as its exit-node (best known delay first) and has the caller restart.
  *
- * The caller supplies the probe, true while the connection works or the probe cannot judge, and the switch.
+ * The caller supplies the probe, true while the connection works or the probe cannot judge, and the restart.
  */
 internal object PhonixFailover {
 
@@ -32,7 +33,7 @@ internal object PhonixFailover {
     private val tried = linkedSetOf<String>()
 
     @Synchronized
-    fun start(probe: suspend () -> Boolean, switchTo: (String) -> Unit) {
+    fun start(probe: suspend () -> Boolean, restart: () -> Unit) {
         job?.cancel()
         job = scope.launch {
             delay(FIRST_CHECK_DELAY_MS)
@@ -50,10 +51,8 @@ internal object PhonixFailover {
                 } else {
                     fails++
                     if (fails >= FAILS_TO_SWITCH) {
-                        val next = pickNext()
-                        if (next != null) {
-                            LogUtil.i(AppConfig.TAG, "PhonixFailover: switching to $next")
-                            switchTo(next)
+                        if (switchExitNode()) {
+                            restart()
                             return@launch
                         }
                         fails = 0
@@ -70,30 +69,27 @@ internal object PhonixFailover {
         job = null
     }
 
-    /** The next config of the selected one's subscription, or null when there is none to try. */
-    private fun pickNext(): String? {
-        val current = MmkvManager.getSelectServer() ?: return null
-        val currentProfile = MmkvManager.decodeServerConfig(current) ?: return null
-        if (currentProfile.subscriptionId.isEmpty()) return null
+    /**
+     * Gives the selected Aether profile of this build the next server of its subscriptions as its exit-node.
+     * False when the selected profile is not that one, or there is no server left to try.
+     */
+    private fun switchExitNode(): Boolean {
+        val guid = MmkvManager.getSelectServer() ?: return false
+        val profile = MmkvManager.decodeServerConfig(guid) ?: return false
+        if (profile.configType != EConfigType.AETHER) return false
+        val current = profile.aetherExitNode?.trim().orEmpty()
         val next = synchronized(tried) {
-            tried.add(current)
-            MmkvManager.decodeServerList(currentProfile.subscriptionId)
-                .asSequence()
-                .filter { it !in tried }
-                .mapNotNull { guid -> MmkvManager.decodeServerConfig(guid)?.let { guid to it } }
-                .filter { (_, profile) -> !profile.configType.isComplexType() && LauncherManager.hasUsableServer(profile) }
-                .sortedBy { (guid, _) -> rank(MmkvManager.decodeServerAffiliationInfo(guid)?.testDelayMillis ?: 0L) }
-                .map { it.first }
-                .firstOrNull()
-                ?: run { tried.clear(); null }
+            if (current.isNotEmpty()) tried.add(current)
+            PhonixPolicy.bestExitNode(exclude = tried.toSet()) ?: run { tried.clear(); null }
+        } ?: return false
+        LogUtil.i(AppConfig.TAG, "PhonixFailover: the exit-node becomes $next")
+        profile.aetherExitNode = next
+        return try {
+            MmkvManager.encodeServerConfig(guid, profile)
+            true
+        } catch (e: Exception) {
+            LogUtil.e(AppConfig.TAG, "PhonixFailover: the profile was not stored", e)
+            false
         }
-        return next
-    }
-
-    /** Smaller first: measured delays, then untested, then the ones whose test failed. */
-    private fun rank(delayMillis: Long): Long = when {
-        delayMillis > 0L -> delayMillis
-        delayMillis == 0L -> 100_000L
-        else -> 1_000_000L
     }
 }
