@@ -94,6 +94,33 @@ object PhonixProvisioner {
         }
     }
 
+    /** The outcomes of [rescanEndpoint]. */
+    enum class RescanResult { FOUND, NOT_FOUND, BUSY, SESSION_ACTIVE, NO_PROFILE, KEYS_MISSING }
+
+    /**
+     * "Get new IP": scans for a new endpoint of the MASQUE profile and stores it, whatever endpoint the profile has now.
+     * It does not run while a setup runs, nor while an Aether session is live: a scan must not disturb its tunnel.
+     */
+    suspend fun rescanEndpoint(context: Context): RescanResult {
+        if (!busy.tryLock()) return RescanResult.BUSY
+        try {
+            if (!PhonixPolicy.ensureAetherProfile()) return RescanResult.NO_PROFILE
+            val (guid, _) = PhonixPolicy.findAetherProfile() ?: return RescanResult.NO_PROFILE
+            if (AetherEditorRepository(context).activeSession() != null) return RescanResult.SESSION_ACTIVE
+            val profile = MmkvManager.decodeServerConfig(guid) ?: return RescanResult.NO_PROFILE
+            if (!ensureKeys(context, profile)) return RescanResult.KEYS_MISSING
+            val result = AetherScanner.scan(context, profile) ?: return RescanResult.NOT_FOUND
+            update(guid) {
+                it.server = result.endpoint.host
+                it.serverPort = result.endpoint.port.toString()
+            }
+            notifyUi(context)
+            return RescanResult.FOUND
+        } finally {
+            busy.unlock()
+        }
+    }
+
     private suspend fun setup(context: Context) {
         val subs = PhonixPolicy.allowedSubs()
         if (subs.isEmpty()) return

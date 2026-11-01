@@ -789,4 +789,35 @@
     <string name="sub_info_open_page">باز کردن صفحه اطلاعات اشتراک</string>
     <string name="sub_info_unlimited">نامحدود</string>
 
+    <!-- رابط کاربری ساده‌شده -->
+    <string name="ui_key_title">کلید خود را اضافه کنید</string>
+    <string name="ui_key_subtitle">شما هیچ کلید فعالی ندارید.\nلطفاً یک کلید معتبر وارد کنید یا کد QR آن را اسکن کنید.</string>
+    <string name="ui_key_hint">کلید VPN خود را اینجا بچسبانید…</string>
+    <string name="ui_key_activate">فعال‌سازی کلید</string>
+    <string name="ui_key_scan_qr">اسکن کد QR</string>
+    <string name="ui_key_paste">چسباندن</string>
+    <string name="ui_key_empty">ابتدا یک کلید وارد کنید یا کد QR را اسکن کنید.</string>
+    <string name="ui_home_traffic_used">ترافیک مصرف‌شده</string>
+    <string name="ui_home_expires">انقضا</string>
+    <string name="ui_home_no_expiry">بدون انقضا</string>
+    <string name="ui_home_expired">اشتراک منقضی شده است.</string>
+    <string name="ui_home_update_sub">به‌روزرسانی اشتراک</string>
+    <string name="ui_home_get_new_ip">Get new IP</string>
+    <string name="ui_home_scanning">در حال اسکن…</string>
+    <string name="ui_home_ip_found">آی‌پی جدید پیدا شد</string>
+    <string name="ui_home_ip_not_found">آی‌پی جدیدی پیدا نشد، دوباره تلاش کنید</string>
+    <string name="ui_home_disconnect_first">ابتدا اتصال را قطع کنید، سپس آی‌پی جدید بگیرید</string>
+    <string name="ui_home_ip_busy">در حال آماده‌سازی، کمی بعد دوباره تلاش کنید</string>
+    <string name="ui_home_keys_missing">کلیدها آماده نشد، اتصال اینترنت را بررسی کنید</string>
+    <string name="ui_home_status_connected">متصل</string>
+    <string name="ui_home_status_disconnected">برای اتصال بزنید</string>
+    <string name="ui_home_status_connecting">در حال اتصال…</string>
+    <string name="ui_settings_language">زبان</string>
+    <string name="ui_settings_logout">خروج</string>
+    <string name="ui_settings_logout_title">خروج از حساب؟</string>
+    <string name="ui_settings_logout_message">کلید و سرورهای آن از این دستگاه حذف می‌شود و باید دوباره کلید وارد کنید.</string>
+    <string name="ui_cancel">انصراف</string>
+    <string name="ui_back">بازگشت</string>
+    <string name="ui_settings_open">تنظیمات</string>
+
 </resources>

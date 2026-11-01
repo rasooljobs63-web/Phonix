@@ -797,4 +797,35 @@
     <string name="sub_info_traffic" translatable="false">%1$s / %2$s</string>
     <string name="sub_info_unlimited">Unlimited</string>
 
+    <!-- Simplified UI -->
+    <string name="ui_key_title">Add your key</string>
+    <string name="ui_key_subtitle">You have no active key.\nPlease enter a valid key or scan its QR code.</string>
+    <string name="ui_key_hint">Paste your VPN key…</string>
+    <string name="ui_key_activate">Activate key</string>
+    <string name="ui_key_scan_qr">Scan QR code</string>
+    <string name="ui_key_paste">Paste</string>
+    <string name="ui_key_empty">Enter a key or scan a QR code first.</string>
+    <string name="ui_home_traffic_used">Traffic used</string>
+    <string name="ui_home_expires">Expires</string>
+    <string name="ui_home_no_expiry">No expiry</string>
+    <string name="ui_home_expired">The subscription has expired.</string>
+    <string name="ui_home_update_sub">Update subscription</string>
+    <string name="ui_home_get_new_ip">Get new IP</string>
+    <string name="ui_home_scanning">Scanning…</string>
+    <string name="ui_home_ip_found">New IP found</string>
+    <string name="ui_home_ip_not_found">No new IP found, try again</string>
+    <string name="ui_home_disconnect_first">Disconnect first, then get a new IP</string>
+    <string name="ui_home_ip_busy">Preparing, try again in a moment</string>
+    <string name="ui_home_keys_missing">The keys could not be prepared, check your connection</string>
+    <string name="ui_home_status_connected">Connected</string>
+    <string name="ui_home_status_disconnected">Tap to connect</string>
+    <string name="ui_home_status_connecting">Connecting…</string>
+    <string name="ui_settings_language">Language</string>
+    <string name="ui_settings_logout">Log out</string>
+    <string name="ui_settings_logout_title">Log out?</string>
+    <string name="ui_settings_logout_message">The key and its servers will be removed from this device. You will need to enter a key again.</string>
+    <string name="ui_cancel">Cancel</string>
+    <string name="ui_back">Back</string>
+    <string name="ui_settings_open">Settings</string>
+
 </resources>
