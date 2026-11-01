@@ -147,6 +147,7 @@ class MainActivity : HelperBaseComponentActivity() {
             )
         } else {
             val scope = rememberCoroutineScope()
+            val setupState by PhonixProvisioner.setupState.collectAsStateWithLifecycle()
             var scanning by remember { mutableStateOf(false) }
             val info = remember(sub) {
                 sub.subscription.usageInfo?.let { buildSubscriptionInfoUiModel(it, System.currentTimeMillis()) }
@@ -163,7 +164,11 @@ class MainActivity : HelperBaseComponentActivity() {
                 isRunning = uiState.isRunning,
                 isUpdating = isLoading,
                 isScanning = scanning,
-                onToggle = ::handleFabAction,
+                setupState = setupState,
+                onToggle = {
+                    if (setupState == PhonixProvisioner.Setup.PREPARING) toast(R.string.ui_setup_wait)
+                    else handleFabAction()
+                },
                 onUpdate = { mainViewModel.onAction(MainAction.UpdateSubscriptions) },
                 onGetNewIp = {
                     if (scanning) return@SimpleHomeScreen

@@ -827,5 +827,9 @@
     <string name="ui_cancel">Cancel</string>
     <string name="ui_back">Back</string>
     <string name="ui_settings_open">Settings</string>
+    <string name="ui_setup_title">Servers are being added</string>
+    <string name="ui_setup_wait">Please wait a moment</string>
+    <string name="ui_setup_ready">The app is set up and ready to connect.</string>
+    <string name="ui_setup_failed">Setup did not finish. Update the subscription and try again.</string>
 
 </resources>

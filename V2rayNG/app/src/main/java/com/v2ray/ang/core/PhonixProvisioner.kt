@@ -21,6 +21,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -51,19 +54,42 @@ object PhonixProvisioner {
     private val refetched = AtomicBoolean(false)
     private val busy = Mutex()
 
+    /** Where the first setup of a key is: the screen tells the person to wait while it is [PREPARING]. */
+    enum class Setup { IDLE, PREPARING, READY, FAILED }
+
+    private val setupFlow = MutableStateFlow(Setup.IDLE)
+    val setupState: StateFlow<Setup> = setupFlow.asStateFlow()
+
+    /** Forgets the state of the setup, as after a log out. */
+    fun reset() {
+        setupFlow.value = Setup.IDLE
+    }
+
+    /** Whether the profile, its endpoint and the servers are not all there yet: the setup is still the first one. */
+    private fun needsSetup(): Boolean {
+        if (PhonixPolicy.allowedSubs().isEmpty()) return false
+        val aether = PhonixPolicy.findAetherProfile()?.second ?: return true
+        if (aether.server.isNullOrBlank() || aether.serverPort.isNullOrBlank()) return true
+        return PhonixPolicy.serverCandidates().isEmpty()
+    }
+
     /** Asks for a run, in the background. */
     fun kick() {
+        if (needsSetup()) setupFlow.value = Setup.PREPARING
         again.set(true)
         if (!running.compareAndSet(false, true)) return
         scope.launch {
             try {
                 while (again.getAndSet(false)) {
+                    val first = needsSetup()
                     try {
-                        busy.withLock { setup(AngApplication.application) }
+                        val ready = busy.withLock { setup(AngApplication.application) }
+                        if (first) setupFlow.value = if (ready) Setup.READY else Setup.FAILED
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         LogUtil.e(AppConfig.TAG, "$TAG: setup failed", e)
+                        if (first) setupFlow.value = Setup.FAILED
                     }
                 }
             } finally {
@@ -121,14 +147,14 @@ object PhonixProvisioner {
         }
     }
 
-    private suspend fun setup(context: Context) {
+    private suspend fun setup(context: Context): Boolean {
         val subs = PhonixPolicy.allowedSubs()
-        if (subs.isEmpty()) return
+        if (subs.isEmpty()) return false
 
         // 1. The profile, named after the subscription, dialing out on its own, and the servers behind it
-        if (!PhonixPolicy.ensureAetherProfile()) return
+        if (!PhonixPolicy.ensureAetherProfile()) return false
         PhonixPolicy.ensureAetherName(subs.first())
-        val (aetherGuid, _) = PhonixPolicy.findAetherProfile() ?: return
+        val (aetherGuid, _) = PhonixPolicy.findAetherProfile() ?: return false
         update(aetherGuid) { it.aetherExitNode = null }
         PhonixPolicy.uniquifyServerNames()
         PhonixPolicy.ensureChainForAllSubs()
@@ -153,14 +179,14 @@ object PhonixProvisioner {
                 if (stored.isEmpty()) "Phonix: the subscription has no servers yet"
                 else "Phonix: ${stored.size} servers in the subscription, none can be used (${stored.map { it.configType.name }.distinct().joinToString()})"
             )
-            return
+            return false
         }
 
         // A live Aether session is not disturbed: its core, its keys and its profile stay as they are.
-        if (AetherEditorRepository(context).activeSession() != null) return
+        if (AetherEditorRepository(context).activeSession() != null) return true
 
         // 2. The WARP keys, and 3. the endpoint
-        val profile = MmkvManager.decodeServerConfig(aetherGuid) ?: return
+        val profile = MmkvManager.decodeServerConfig(aetherGuid) ?: return false
         val keysReady = ensureKeys(context, profile)
         var endpointReady = !profile.server.isNullOrBlank() && !profile.serverPort.isNullOrBlank()
         if (!endpointReady && keysReady) {
@@ -176,7 +202,7 @@ object PhonixProvisioner {
         if (!keysReady || !endpointReady) {
             toast(context, "Phonix: ${if (!keysReady) "WARP keys" else "endpoint"} missing, it is retried at the next start")
             notifyUi(context)
-            return
+            return false
         }
 
         // 4. The servers, tested through the tunnel
@@ -184,6 +210,7 @@ object PhonixProvisioner {
         testAndSelect(context, servers.map { it.first }, PING_TIMEOUT_MS)
         toast(context, "Phonix: ready")
         notifyUi(context)
+        return true
     }
 
     /** Tests the servers [guids] from scratch, within [timeoutMs], and selects the one with the lowest delay. */

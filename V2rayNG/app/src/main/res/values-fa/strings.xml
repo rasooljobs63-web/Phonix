@@ -819,5 +819,9 @@
     <string name="ui_cancel">انصراف</string>
     <string name="ui_back">بازگشت</string>
     <string name="ui_settings_open">تنظیمات</string>
+    <string name="ui_setup_title">سرورها در حال اضافه شدن</string>
+    <string name="ui_setup_wait">لطفا کمی صبر کنید</string>
+    <string name="ui_setup_ready">برنامه راه‌اندازی شد و آماده اتصال می‌باشد</string>
+    <string name="ui_setup_failed">راه‌اندازی کامل نشد. اشتراک را به‌روزرسانی کنید و دوباره تلاش کنید.</string>
 
 </resources>

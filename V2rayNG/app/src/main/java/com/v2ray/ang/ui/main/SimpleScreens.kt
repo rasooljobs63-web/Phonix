@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.v2ray.ang.R
+import com.v2ray.ang.core.PhonixProvisioner
 import com.v2ray.ang.extension.toTrafficString
 import com.v2ray.ang.ui.compose.LocalDarkTheme
 import com.v2ray.ang.util.Utils
@@ -233,6 +234,7 @@ internal fun SimpleHomeScreen(
     isRunning: Boolean,
     isUpdating: Boolean,
     isScanning: Boolean,
+    setupState: PhonixProvisioner.Setup,
     onToggle: () -> Unit,
     onUpdate: () -> Unit,
     onGetNewIp: () -> Unit,
@@ -240,6 +242,7 @@ internal fun SimpleHomeScreen(
 ) {
     val c = uiColors()
     val ring = if (isRunning) c.accent else c.idle
+    val preparing = setupState == PhonixProvisioner.Setup.PREPARING
 
     Column(
         modifier = Modifier
@@ -289,14 +292,50 @@ internal fun SimpleHomeScreen(
             }
         }
         Spacer(Modifier.height(16.dp))
+        val shownStatus = when {
+            isRunning || isScanning -> statusText
+            setupState == PhonixProvisioner.Setup.READY -> stringResource(R.string.ui_setup_ready)
+            setupState == PhonixProvisioner.Setup.FAILED -> stringResource(R.string.ui_setup_failed)
+            else -> statusText
+        }
         Text(
-            text = statusText,
-            color = if (isRunning) c.accent else c.subText,
+            text = shownStatus,
+            color = when {
+                isRunning -> c.accent
+                setupState == PhonixProvisioner.Setup.READY -> c.accent
+                setupState == PhonixProvisioner.Setup.FAILED -> c.danger
+                else -> c.subText
+            },
             fontSize = 15.sp,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        if (preparing) {
+            Spacer(Modifier.height(16.dp))
+            Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = c.card) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(Modifier.size(28.dp), color = c.accent, strokeWidth = 3.dp)
+                    Spacer(Modifier.size(16.dp))
+                    Column {
+                        Text(
+                            text = stringResource(R.string.ui_setup_title),
+                            color = c.text,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = stringResource(R.string.ui_setup_wait),
+                            color = c.subText,
+                            fontSize = 15.sp,
+                        )
+                    }
+                }
+            }
+        }
         Spacer(Modifier.height(20.dp))
 
         Surface(
@@ -384,7 +423,7 @@ internal fun SimpleHomeScreen(
 
                 Button(
                     onClick = onGetNewIp,
-                    enabled = !isScanning,
+                    enabled = !isScanning && !preparing,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),

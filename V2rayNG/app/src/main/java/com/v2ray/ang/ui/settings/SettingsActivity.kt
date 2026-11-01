@@ -40,6 +40,7 @@ import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.core.LauncherManager
+import com.v2ray.ang.core.PhonixProvisioner
 import com.v2ray.ang.handler.AppLocaleManager
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.ui.base.BaseComponentActivity
@@ -69,6 +70,7 @@ class SettingsActivity : BaseComponentActivity() {
                         .forEach { MmkvManager.tryRemoveSubscription(it.guid) }
                     MmkvManager.removeAllServer()
                     MmkvManager.setSelectServer("")
+                    PhonixProvisioner.reset()
                 } catch (e: Exception) {
                     LogUtil.e(AppConfig.TAG, "Failed to log out", e)
                 }
