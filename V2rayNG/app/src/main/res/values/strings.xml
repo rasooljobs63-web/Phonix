@@ -832,4 +832,14 @@
     <string name="ui_setup_ready">The app is set up and ready to connect.</string>
     <string name="ui_setup_failed">Setup did not finish. Update the subscription and try again.</string>
 
+    <string name="ui_servers_title">Servers</string>
+    <string name="ui_servers_auto">Automatic (lowest ping)</string>
+    <string name="ui_servers_test">Test ping</string>
+    <string name="ui_servers_testing">Testing…</string>
+    <string name="ui_servers_timeout">Failed</string>
+    <string name="ui_servers_untested">Not tested</string>
+    <string name="ui_servers_empty">No servers added yet</string>
+    <string name="ui_servers_disconnect_first">Disconnect first, then test the ping</string>
+    <string name="ui_servers_not_ready">The setup is not finished yet</string>
+    <string name="ui_servers_busy">Something else is running, try again in a moment</string>
 </resources>

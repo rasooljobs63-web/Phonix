@@ -63,6 +63,7 @@ object PhonixProvisioner {
     /** Forgets the state of the setup, as after a log out. */
     fun reset() {
         setupFlow.value = Setup.IDLE
+        PhonixPolicy.setManualServerName(null)
     }
 
     /** Whether the profile, its endpoint and the servers are not all there yet: the setup is still the first one. */
@@ -115,6 +116,26 @@ object PhonixProvisioner {
                 return
             }
             testAndSelect(context, servers.map { it.first }, START_PING_TIMEOUT_MS)
+        } finally {
+            busy.unlock()
+        }
+    }
+
+    /** The outcomes of [testServers]. */
+    enum class TestResult { DONE, BUSY, NOT_READY }
+
+    /**
+     * Tests the servers through the tunnel, for the list on the screen: the delay of each, and the lowest one selected
+     * unless a server was chosen by hand. It does not run while a setup runs, nor while a connection is live.
+     */
+    suspend fun testServers(context: Context): TestResult {
+        if (!busy.tryLock()) return TestResult.BUSY
+        try {
+            val aether = PhonixPolicy.findAetherProfile()?.second
+            val servers = PhonixPolicy.serverCandidates()
+            if (aether == null || aether.server.isNullOrBlank() || servers.isEmpty()) return TestResult.NOT_READY
+            testAndSelect(context, servers.map { it.first }, PING_TIMEOUT_MS)
+            return TestResult.DONE
         } finally {
             busy.unlock()
         }
@@ -218,7 +239,7 @@ object PhonixProvisioner {
         // A delay measured before says nothing of the connection now
         guids.forEach { MmkvManager.encodeServerTestDelayMillis(it, 0L) }
         pingAll(context, guids, timeoutMs)
-        PhonixPolicy.bestServer()?.let { MmkvManager.setSelectServer(it) }
+        PhonixPolicy.applySelection()
     }
 
     private suspend fun pingAll(context: Context, guids: List<String>, timeoutMs: Long) {

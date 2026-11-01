@@ -73,6 +73,8 @@ internal object PhonixFailover {
      * connection last worked. False when the selected one is none of the subscription's, or none is left to try.
      */
     private fun switchServer(): Boolean {
+        // A server chosen by hand stays, whatever its delay
+        if (PhonixPolicy.manualServerGuid() != null) return false
         val current = MmkvManager.getSelectServer() ?: return false
         if (PhonixPolicy.serverCandidates().none { it.first == current }) return false
         val next = synchronized(tried) {

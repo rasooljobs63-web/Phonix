@@ -802,7 +802,7 @@
     <string name="ui_home_no_expiry">بدون انقضا</string>
     <string name="ui_home_expired">اشتراک منقضی شده است.</string>
     <string name="ui_home_update_sub">به‌روزرسانی اشتراک</string>
-    <string name="ui_home_get_new_ip">Get new IP</string>
+    <string name="ui_home_get_new_ip">گرفتن آی‌پی جدید</string>
     <string name="ui_home_scanning">در حال اسکن…</string>
     <string name="ui_home_ip_found">آی‌پی جدید پیدا شد</string>
     <string name="ui_home_ip_not_found">آی‌پی جدیدی پیدا نشد، دوباره تلاش کنید</string>
@@ -824,4 +824,14 @@
     <string name="ui_setup_ready">برنامه راه‌اندازی شد و آماده اتصال می‌باشد</string>
     <string name="ui_setup_failed">راه‌اندازی کامل نشد. اشتراک را به‌روزرسانی کنید و دوباره تلاش کنید.</string>
 
+    <string name="ui_servers_title">سرورها</string>
+    <string name="ui_servers_auto">خودکار (کم‌ترین پینگ)</string>
+    <string name="ui_servers_test">تست پینگ</string>
+    <string name="ui_servers_testing">در حال تست…</string>
+    <string name="ui_servers_timeout">ناموفق</string>
+    <string name="ui_servers_untested">تست نشده</string>
+    <string name="ui_servers_empty">هنوز سروری اضافه نشده است</string>
+    <string name="ui_servers_disconnect_first">ابتدا اتصال را قطع کنید، سپس پینگ را تست کنید</string>
+    <string name="ui_servers_not_ready">راه‌اندازی هنوز کامل نشده است</string>
+    <string name="ui_servers_busy">در حال انجام کار دیگر، کمی بعد دوباره تلاش کنید</string>
 </resources>

@@ -115,6 +115,34 @@ object PhonixPolicy {
 
     fun delayOf(guid: String): Long = MmkvManager.decodeServerAffiliationInfo(guid)?.testDelayMillis ?: 0L
 
+    /** A server of the list on the screen: its key, its name, and its delay (0 untested, below 0 failed). */
+    data class ServerRow(val guid: String, val name: String, val delayMillis: Long)
+
+    /** The servers of the subscription, in the order of the panel, for the list on the screen. */
+    fun serverRows(): List<ServerRow> =
+        serverCandidates().map { (guid, profile) -> ServerRow(guid, profile.remarks.trim(), delayOf(guid)) }
+
+    private const val PREF_MANUAL_SERVER = "phonix_manual_server"
+
+    /**
+     * The key of the server the person chose by hand, null while the lowest delay decides. It is kept by name: the keys
+     * change with every update of the subscription, the names do not.
+     */
+    fun manualServerGuid(): String? {
+        val name = MmkvManager.decodeSettingsString(PREF_MANUAL_SERVER)?.takeIf { it.isNotEmpty() } ?: return null
+        return serverCandidates().firstOrNull { (_, profile) -> profile.remarks.trim() == name }?.first
+    }
+
+    /** Takes the choice of a server by hand: its name, or null to give the choice back to the lowest delay. */
+    fun setManualServerName(name: String?) {
+        MmkvManager.encodeSettings(PREF_MANUAL_SERVER, name.orEmpty())
+    }
+
+    /** Selects the server the person chose by hand, else the one with the lowest delay. */
+    fun applySelection() {
+        (manualServerGuid() ?: bestServer())?.let { MmkvManager.setSelectServer(it) }
+    }
+
     /** The key of the server with the lowest delay among the candidates, those keyed in [exclude] left out. */
     fun bestServer(exclude: Set<String> = emptySet()): String? =
         serverCandidates()
@@ -130,6 +158,11 @@ object PhonixPolicy {
         val candidates = serverCandidates()
         if (candidates.isEmpty()) return
         val selected = MmkvManager.getSelectServer()
+        val manual = manualServerGuid()
+        if (manual != null) {
+            if (selected != manual) MmkvManager.setSelectServer(manual)
+            return
+        }
         if (selected != null && candidates.any { it.first == selected }) return
         bestServer()?.let { MmkvManager.setSelectServer(it) }
     }

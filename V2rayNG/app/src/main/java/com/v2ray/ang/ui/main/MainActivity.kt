@@ -149,6 +149,13 @@ class MainActivity : HelperBaseComponentActivity() {
             val scope = rememberCoroutineScope()
             val setupState by PhonixProvisioner.setupState.collectAsStateWithLifecycle()
             var scanning by remember { mutableStateOf(false) }
+            var testing by remember { mutableStateOf(false) }
+            var serversRevision by remember { mutableIntStateOf(0) }
+            // The delays arrive from the tests, the pick from the screen and the service: the list is read again then
+            val servers = remember(uiState.groups, uiState.selectedGuid, uiState.isRunning, setupState, testing, serversRevision) {
+                PhonixPolicy.serverRows()
+            }
+            val manualGuid = remember(servers, serversRevision) { PhonixPolicy.manualServerGuid() }
             val info = remember(sub) {
                 sub.subscription.usageInfo?.let { buildSubscriptionInfoUiModel(it, System.currentTimeMillis()) }
             }
@@ -165,6 +172,39 @@ class MainActivity : HelperBaseComponentActivity() {
                 isUpdating = isLoading,
                 isScanning = scanning,
                 setupState = setupState,
+                servers = servers,
+                selectedGuid = uiState.selectedGuid,
+                manualSelection = manualGuid != null,
+                isTesting = testing,
+                onSelectServer = { guid ->
+                    // null gives the pick back to the lowest delay; a key is a server chosen by hand
+                    PhonixPolicy.setManualServerName(guid?.let { key -> servers.firstOrNull { it.guid == key }?.name })
+                    (guid ?: PhonixPolicy.bestServer())?.let { setSelectServer(it) }
+                    serversRevision++
+                },
+                onTestServers = {
+                    when {
+                        testing -> Unit
+                        uiState.isRunning -> toast(R.string.ui_servers_disconnect_first)
+                        setupState == PhonixProvisioner.Setup.PREPARING -> toast(R.string.ui_setup_wait)
+                        else -> {
+                            testing = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    PhonixProvisioner.testServers(applicationContext)
+                                }
+                                testing = false
+                                serversRevision++
+                                mainViewModel.refreshSelectedGuid()
+                                when (result) {
+                                    PhonixProvisioner.TestResult.BUSY -> toast(R.string.ui_servers_busy)
+                                    PhonixProvisioner.TestResult.NOT_READY -> toast(R.string.ui_servers_not_ready)
+                                    PhonixProvisioner.TestResult.DONE -> Unit
+                                }
+                            }
+                        }
+                    }
+                },
                 onToggle = {
                     if (setupState == PhonixProvisioner.Setup.PREPARING) toast(R.string.ui_setup_wait)
                     else handleFabAction()

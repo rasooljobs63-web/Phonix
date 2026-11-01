@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.v2ray.ang.R
 import com.v2ray.ang.core.PhonixProvisioner
 import com.v2ray.ang.extension.toTrafficString
+import com.v2ray.ang.handler.PhonixPolicy
 import com.v2ray.ang.ui.compose.LocalDarkTheme
 import com.v2ray.ang.util.Utils
 
@@ -224,7 +225,8 @@ fun KeyEntryScreen(
 
 /**
  * Second screen: the power button, and the subscription's name, traffic and expiry, which can only be looked at, with
- * its update and the "Get new IP" scan. Nothing else of the app is reachable from here but the settings.
+ * its update; under it the servers with their delays, one of which can be chosen by hand, and at the end the
+ * "Get new IP" scan. Nothing else of the app is reachable from here but the settings.
  */
 @Composable
 internal fun SimpleHomeScreen(
@@ -235,6 +237,12 @@ internal fun SimpleHomeScreen(
     isUpdating: Boolean,
     isScanning: Boolean,
     setupState: PhonixProvisioner.Setup,
+    servers: List<PhonixPolicy.ServerRow>,
+    selectedGuid: String?,
+    manualSelection: Boolean,
+    isTesting: Boolean,
+    onSelectServer: (String?) -> Unit,
+    onTestServers: () -> Unit,
     onToggle: () -> Unit,
     onUpdate: () -> Unit,
     onGetNewIp: () -> Unit,
@@ -421,6 +429,17 @@ internal fun SimpleHomeScreen(
                     InfoRow(text = stringResource(R.string.ui_home_expired), color = c.inner, textColor = c.danger)
                 }
 
+                ServersCard(
+                    colors = c,
+                    servers = servers,
+                    selectedGuid = selectedGuid,
+                    manualSelection = manualSelection,
+                    isTesting = isTesting,
+                    enabled = !preparing,
+                    onSelect = onSelectServer,
+                    onTest = onTestServers,
+                )
+
                 Button(
                     onClick = onGetNewIp,
                     enabled = !isScanning && !preparing,
@@ -444,6 +463,123 @@ internal fun SimpleHomeScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/** The servers of the subscription with their delays; one is picked by tapping it, "automatic" gives the pick back. */
+@Composable
+private fun ServersCard(
+    colors: UiColors,
+    servers: List<PhonixPolicy.ServerRow>,
+    selectedGuid: String?,
+    manualSelection: Boolean,
+    isTesting: Boolean,
+    enabled: Boolean,
+    onSelect: (String?) -> Unit,
+    onTest: () -> Unit,
+) {
+    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = colors.inner) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.ui_servers_title),
+                    modifier = Modifier.weight(1f),
+                    color = colors.text,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                TextButton(onClick = onTest, enabled = enabled && !isTesting && servers.isNotEmpty()) {
+                    if (isTesting) {
+                        CircularProgressIndicator(Modifier.size(16.dp), color = colors.accent, strokeWidth = 2.dp)
+                        Spacer(Modifier.size(8.dp))
+                        Text(stringResource(R.string.ui_servers_testing), color = colors.accent, fontSize = 14.sp)
+                    } else {
+                        Text(stringResource(R.string.ui_servers_test), color = colors.accent, fontSize = 14.sp)
+                    }
+                }
+            }
+            if (servers.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.ui_servers_empty),
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    color = colors.subText,
+                    fontSize = 14.sp,
+                )
+            } else {
+                ServerRowItem(
+                    colors = colors,
+                    name = stringResource(R.string.ui_servers_auto),
+                    delayText = "",
+                    delayColor = colors.subText,
+                    selected = !manualSelection,
+                    onClick = { onSelect(null) },
+                )
+                servers.forEach { server ->
+                    val delayText = when {
+                        server.delayMillis > 0L -> "${server.delayMillis} ms"
+                        server.delayMillis < 0L -> stringResource(R.string.ui_servers_timeout)
+                        else -> stringResource(R.string.ui_servers_untested)
+                    }
+                    val delayColor = when {
+                        server.delayMillis < 0L -> colors.danger
+                        server.delayMillis == 0L -> colors.subText
+                        server.delayMillis <= 600L -> Color(0xFF2E9E5B)
+                        server.delayMillis <= 1500L -> Color(0xFFE0A100)
+                        else -> colors.danger
+                    }
+                    ServerRowItem(
+                        colors = colors,
+                        name = server.name,
+                        delayText = delayText,
+                        delayColor = delayColor,
+                        selected = manualSelection && server.guid == selectedGuid,
+                        onClick = { onSelect(server.guid) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServerRowItem(
+    colors: UiColors,
+    name: String,
+    delayText: String,
+    delayColor: Color,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .border(BorderStroke(2.dp, if (selected) colors.accent else colors.idle), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Box(Modifier.size(10.dp).clip(CircleShape).background(colors.accent))
+        }
+        Spacer(Modifier.size(12.dp))
+        Text(
+            text = name,
+            modifier = Modifier.weight(1f),
+            color = colors.text,
+            fontSize = 16.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (delayText.isNotEmpty()) {
+            Spacer(Modifier.size(8.dp))
+            Text(text = delayText, color = delayColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
