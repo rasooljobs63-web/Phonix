@@ -96,6 +96,9 @@ class MainActivity : HelperBaseComponentActivity() {
         super.onCreate(savedInstanceState)
         mainViewModel.onAction(MainAction.Initialize)
 
+        // Phonix: sets the Aether profile up, when it is not yet, for a subscription already there.
+        com.v2ray.ang.core.PhonixProvisioner.kick()
+
         checkAndRequestPermission(PermissionType.POST_NOTIFICATIONS) {}
     }
 
@@ -208,7 +211,12 @@ class MainActivity : HelperBaseComponentActivity() {
         ) {
             checkAndRequestPermission(PermissionType.ACCESS_LOCAL_NETWORK) {}
         }
-        LauncherManager.startService(this)
+        // Phonix: the servers of the subscription are tested through the tunnel before each connection, and the one
+        // with the lowest delay is the one that connects
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { com.v2ray.ang.core.PhonixProvisioner.prepareStart(this@MainActivity) }
+            LauncherManager.startService(this@MainActivity)
+        }
     }
 
     private fun importManually(createConfigType: Int) {

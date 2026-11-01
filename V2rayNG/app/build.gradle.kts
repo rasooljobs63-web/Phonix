@@ -10,7 +10,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.patterniha.pattng"
+        applicationId = "com.phonix.vpn"
         minSdk = 29
         targetSdk = 37
         versionCode = 753

@@ -44,7 +44,6 @@ enum class MainDestination(@DrawableRes val iconRes: Int, @StringRes val labelRe
 }
 
 private val primaryDrawerItems = listOf(
-    MainDestination.Subscriptions,
     MainDestination.PerAppProxy,
     MainDestination.Routing,
     MainDestination.UserAssets,
@@ -52,9 +51,7 @@ private val primaryDrawerItems = listOf(
 )
 
 private val drawerItems = primaryDrawerItems + listOf(
-    MainDestination.Promotion,
     MainDestination.Logcat,
-    MainDestination.CheckUpdate,
     MainDestination.BackupRestore,
     MainDestination.About
 )
@@ -85,10 +82,9 @@ fun MainDrawerContent(drawerState: DrawerState, onNavigate: (MainDestination) ->
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // PattNG: full-color circular logo, no dark-mode tint (tinting a photo logo
-                    // would flatten it into a white disc)
+                    // Phonix: full-color circular logo, no dark-mode tint
                     Image(
-                        painter = painterResource(R.drawable.ic_pattng_logo),
+                        painter = painterResource(R.drawable.ic_phonix_logo),
                         contentDescription = null,
                         modifier = Modifier.size(120.dp)
                     )

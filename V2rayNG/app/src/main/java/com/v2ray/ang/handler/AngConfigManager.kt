@@ -186,6 +186,22 @@ object AngConfigManager {
      * @return A pair containing the number of configurations and subscriptions imported.
      */
     fun importBatchConfig(server: String?, subid: String, append: Boolean): Pair<Int, Int> {
+        // Phonix: only subscription links of the allowed domain are taken; anything else pasted or scanned is dropped.
+        val allowed = PhonixPolicy.allowedSubLines(server) ?: return 0 to 0
+        return importBatchConfigUnrestricted(allowed, subid, append)
+    }
+
+    /** Phonix: imports one link the app itself made, the built-in Aether profile. */
+    internal fun importTrustedLink(link: String): Boolean {
+        return try {
+            parseBatchConfig(link, "", true) > 0
+        } catch (e: ProfileStorageException) {
+            LogUtil.e(AppConfig.TAG, "Failed to store the built-in profile", e)
+            false
+        }
+    }
+
+    private fun importBatchConfigUnrestricted(server: String?, subid: String, append: Boolean): Pair<Int, Int> {
         return try {
             var count = parseBatchConfig(Utils.decode(server), subid, append)
             if (count <= 0) {
@@ -488,6 +504,28 @@ object AngConfigManager {
                 return SubscriptionUpdateResult(skipCount = 1)
             }
 
+            // Phonix: the default group has no link; it is not a subscription, so nothing is skipped
+            if (it.subscription.url.isBlank()) {
+                return SubscriptionUpdateResult()
+            }
+            // Phonix: a subscription of any other domain is never fetched, whatever was stored.
+            if (!PhonixPolicy.isAllowedSubUrl(it.subscription.url)) {
+                LogUtil.w(AppConfig.TAG, "Subscription refused: its domain is not allowed")
+                return SubscriptionUpdateResult(failureCount = 1)
+            }
+            // Phonix: on, named, asked as wanted and behind the Aether profile, before the checks below
+            if (it.guid.isNotEmpty()) PhonixPolicy.ensureChain(it.guid, it.subscription)
+
+            // Check if disabled
+            if (!it.subscription.enabled) {
+                return SubscriptionUpdateResult(skipCount = 1)
+            }
+
+            // Phonix: the default group has no link; it is not a subscription, so nothing is skipped
+            if (it.subscription.url.isBlank()) {
+                return SubscriptionUpdateResult()
+            }
+
             // Validate subscription info
             if (TextUtils.isEmpty(it.guid)
                 || TextUtils.isEmpty(it.subscription.remarks)
@@ -572,6 +610,7 @@ object AngConfigManager {
                     return SubscriptionUpdateResult(skipCount = 1)
                 }
                 LogUtil.i(AppConfig.TAG, "Subscription updated: ${it.subscription.remarks}, $count configs")
+                com.v2ray.ang.core.PhonixProvisioner.kick()
                 return SubscriptionUpdateResult(
                     configCount = count,
                     successCount = 1
@@ -646,8 +685,12 @@ object AngConfigManager {
         }
         val uri = URI(Utils.fixIllegalUrl(url))
         val subItem = SubscriptionItem()
-        subItem.remarks = uri.fragment ?: "import sub"
+        subItem.remarks = uri.fragment ?: "Phonix"
         subItem.url = url
+        // Phonix: updated by itself.
+        subItem.autoUpdate = true
+        subItem.updateInterval = 180
+        subItem.userAgent = PhonixPolicy.SUB_USER_AGENT
         // PattNG: stored and listed in one hold of the profile index lock, checked; a refusal is logged there.
         return if (MmkvManager.tryEncodeSubscription("", subItem) != null) 1 else 0
     }

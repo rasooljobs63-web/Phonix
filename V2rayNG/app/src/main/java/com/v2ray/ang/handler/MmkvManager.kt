@@ -787,6 +787,11 @@ object MmkvManager {
      * back as it was stored, which, refused too, is logged.
      */
     fun tryEncodeSubscription(guid: String, subItem: SubscriptionItem, listFirst: Boolean = false): String? {
+        // Phonix: a subscription of another domain is never stored.
+        if (subItem.url.isNotBlank() && !PhonixPolicy.isAllowedSubUrl(subItem.url)) {
+            LogUtil.e(TAG, "MmkvManager: subscription refused, its domain is not allowed")
+            return null
+        }
         val key = guid.ifBlank { Utils.getUuid() }
         return withProfileIndexLock {
             val previous = subStorage.decodeString(key)

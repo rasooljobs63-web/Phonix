@@ -81,6 +81,10 @@ object LauncherManager {
         // Note: isRunning check is removed here to avoid loading Native libraries in the UI process.
         // The check is performed in CoreServiceManager when the service starts in the daemon process.
 
+        // Phonix: every subscription behind the Aether profile, and one of its servers selected, never the profile alone.
+        com.v2ray.ang.handler.PhonixPolicy.ensureChainForAllSubs()
+        com.v2ray.ang.handler.PhonixPolicy.ensureServerSelected()
+
         val guid = MmkvManager.getSelectServer()
             ?: run {
                 LogUtil.e(AppConfig.TAG, "LauncherManager: No server selected")

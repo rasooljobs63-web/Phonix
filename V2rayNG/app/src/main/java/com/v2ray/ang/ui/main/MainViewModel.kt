@@ -558,13 +558,24 @@ class MainViewModel(
                 if (forceRefresh) {
                     cacheMutex.withLock { groupDataCache.clear() }
                 }
-                val groups = dataSource.getSubscriptions().map {
+                val allSubscriptions = dataSource.getSubscriptions()
+                // Phonix: the groups without a link of their own, where the Aether profile is, show the account
+                // information of the subscription above their list.
+                val phonixInfo = allSubscriptions.firstOrNull { it.subscription.url.isNotBlank() && it.subscription.usageInfo != null }
+                    ?.let { sub ->
+                        sub.subscription.usageInfo?.let { info ->
+                            SubscriptionInfoParser.withWebPageFallback(info, sub.subscription.url)
+                        }
+                    }
+                // Phonix: the servers of a subscription are not listed, they are the exit-nodes of the Aether profile.
+                val shownGroups = allSubscriptions.filter { it.subscription.url.isBlank() }.ifEmpty { allSubscriptions }
+                val groups = shownGroups.map {
                     GroupMapItem(
                         id = it.guid,
                         remarks = it.subscription.remarks,
                         usageInfo = it.subscription.usageInfo?.let { info ->
                             SubscriptionInfoParser.withWebPageFallback(info, it.subscription.url)
-                        },
+                        } ?: if (it.subscription.url.isBlank()) phonixInfo else null,
                     )
                 }
                 val selectedGroup = resolveSelectedGroup(groups)
@@ -652,7 +663,9 @@ class MainViewModel(
                         dataSource.updateConfigViaSubAll()
                     } else {
                         val item = dataSource.getSubscriptionItem(subId) ?: return@withContext
-                        dataSource.updateConfigViaSub(SubscriptionCache(subId, item))
+                        // Phonix: the card above the default group stands for the subscription, which has no group
+                        if (item.url.isBlank()) dataSource.updateConfigViaSubAll()
+                        else dataSource.updateConfigViaSub(SubscriptionCache(subId, item))
                     }
                     when {
                         result.successCount + result.failureCount + result.skipCount == 0 ->
