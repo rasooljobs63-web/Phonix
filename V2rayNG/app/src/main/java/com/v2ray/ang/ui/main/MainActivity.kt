@@ -9,6 +9,16 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.v2ray.ang.core.PhonixProvisioner
+import com.v2ray.ang.handler.PhonixPolicy
 import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
@@ -60,6 +70,9 @@ class MainActivity : HelperBaseComponentActivity() {
         MainViewModel.Factory(application, MainRepository(application as AngApplication))
     }
 
+    /** Counts the moments the key may have changed, so that the screen looks for it again. */
+    private val keyRevision = mutableIntStateOf(0)
+
     private val requestVpnPermission =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (it.resultCode == RESULT_OK) startV2Ray()
@@ -86,9 +99,11 @@ class MainActivity : HelperBaseComponentActivity() {
     private val settingsActivityLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             val restartService = SettingsChangeManager.consumeRestartService()
-            val refreshGroups = SettingsChangeManager.consumeSetupGroupTab()
+            SettingsChangeManager.consumeSetupGroupTab()
             mainViewModel.refreshUiSettings()
-            if (refreshGroups) mainViewModel.onAction(MainAction.RefreshGroups)
+            // A log out in the settings removes the key: the groups are read again, and the key is looked for again.
+            mainViewModel.onAction(MainAction.RefreshGroups)
+            keyRevision.intValue++
             if (restartService) LauncherManager.restartService(this)
         }
 
@@ -106,33 +121,75 @@ class MainActivity : HelperBaseComponentActivity() {
         super.onStart()
         // The service can have gone away while the screen was not shown, without a word if its process died.
         mainViewModel.onAction(MainAction.RefreshServiceState)
+        keyRevision.intValue++
     }
 
     @Composable
     override fun ScreenContent() {
         BackHandler { moveTaskToBack(false) }
-        MainScreen(
-            mainViewModel = mainViewModel,
-            onAction = { action ->
-                when (action) {
-                    MainAction.ToggleService -> handleFabAction()
-                    MainAction.TestCurrentServer -> handleLayoutTestClick()
-                    MainAction.ImportQRcode -> importQRcode()
-                    MainAction.ImportClipboard -> importClipboard()
-                    MainAction.ImportConfigLocal -> importConfigLocal()
-                    is MainAction.ImportManually -> importManually(action.type)
-                    MainAction.RestartService -> LauncherManager.restartServiceOrStart(this, ::requestServiceStart)
-                    MainAction.LocateSelectedServer -> mainViewModel.triggerLocateSelectedServer()
-                    is MainAction.SelectServer -> setSelectServer(action.guid)
-                    is MainAction.EditServer -> editServer(action.guid, action.profile)
-                    is MainAction.ShareClipboard -> shareToClipboard(action.guid)
-                    is MainAction.ShareFullContent -> shareFullContentAsync(action.guid)
-                    is MainAction.OpenSubscriptionLink -> openSubscriptionLink(action.url)
-                    else -> mainViewModel.onAction(action)
-                }
-            },
-            onNavigate = { route -> navigateTo(route) },
-        )
+
+        val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
+        val isLoading by mainViewModel.isLoading.collectAsStateWithLifecycle()
+        val revision = keyRevision.intValue
+        // The key: the subscription of the allowed domain. Looked for again when the groups, the loading or a return
+        // from the settings may have changed it.
+        val sub = remember(uiState.groups, isLoading, revision) { PhonixPolicy.allowedSubs().firstOrNull() }
+
+        if (sub == null) {
+            KeyEntryScreen(
+                isLoading = isLoading,
+                onActivate = { text ->
+                    if (text.isEmpty()) toast(R.string.ui_key_empty)
+                    else mainViewModel.onAction(MainAction.ImportBatchConfig(text))
+                },
+                onPaste = { Utils.getClipboard(this) },
+                onScanQr = ::importQRcode,
+            )
+        } else {
+            val scope = rememberCoroutineScope()
+            var scanning by remember { mutableStateOf(false) }
+            val info = remember(sub) {
+                sub.subscription.usageInfo?.let { buildSubscriptionInfoUiModel(it, System.currentTimeMillis()) }
+            }
+            val statusText = when (val status = uiState.status) {
+                MainStatus.Disconnected -> stringResource(R.string.ui_home_status_disconnected)
+                MainStatus.Connected -> stringResource(R.string.ui_home_status_connected)
+                else -> mainViewModel.formatStatus(status)
+            }
+            SimpleHomeScreen(
+                title = PhonixPolicy.aetherNameOf(sub),
+                info = info,
+                statusText = if (scanning) stringResource(R.string.ui_home_scanning) else statusText,
+                isRunning = uiState.isRunning,
+                isUpdating = isLoading,
+                isScanning = scanning,
+                onToggle = ::handleFabAction,
+                onUpdate = { mainViewModel.onAction(MainAction.UpdateSubscriptions) },
+                onGetNewIp = {
+                    if (scanning) return@SimpleHomeScreen
+                    if (uiState.isRunning) {
+                        toast(R.string.ui_home_disconnect_first)
+                        return@SimpleHomeScreen
+                    }
+                    scanning = true
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            PhonixProvisioner.rescanEndpoint(applicationContext)
+                        }
+                        scanning = false
+                        when (result) {
+                            PhonixProvisioner.RescanResult.FOUND -> toastSuccess(R.string.ui_home_ip_found)
+                            PhonixProvisioner.RescanResult.NOT_FOUND -> toastError(R.string.ui_home_ip_not_found)
+                            PhonixProvisioner.RescanResult.SESSION_ACTIVE -> toast(R.string.ui_home_disconnect_first)
+                            PhonixProvisioner.RescanResult.BUSY -> toast(R.string.ui_home_ip_busy)
+                            PhonixProvisioner.RescanResult.KEYS_MISSING -> toastError(R.string.ui_home_keys_missing)
+                            PhonixProvisioner.RescanResult.NO_PROFILE -> toastError(R.string.toast_failure)
+                        }
+                    }
+                },
+                onOpenSettings = { navigateTo(MainDestination.Settings) },
+            )
+        }
     }
 
     private fun shareToClipboard(guid: String): Boolean =
