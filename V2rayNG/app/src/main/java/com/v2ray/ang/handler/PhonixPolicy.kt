@@ -21,8 +21,8 @@ import java.util.UUID
  *
  * 1. Only subscription links of [SUB_DOMAIN] (and its subdomains), over https, are accepted.
  * 2. A built-in Aether MASQUE/H2 profile is made for them, with its WARP keys and endpoint, and every server of the
- *    subscription is chained behind it: a connection goes through the Aether tunnel first, then out through the
- *    server with the lowest ping.
+ *    subscription is chained behind it: a connection goes through the Aether tunnel first, then out through a
+ *    server of the subscription, picked at random unless the person chose one.
  */
 object PhonixPolicy {
 
@@ -174,53 +174,13 @@ object PhonixPolicy {
             .mapNotNull { guid -> MmkvManager.decodeServerConfig(guid)?.let { guid to it } }
             .filter { (_, profile) -> AetherExit.takesAsNode(profile) }
 
-    /** Smaller first: measured delays, then untested, then the ones whose test failed. */
-    fun rank(delayMillis: Long): Long = when {
-        delayMillis > 0L -> delayMillis
-        delayMillis == 0L -> 100_000L
-        else -> 1_000_000L
-    }
-
-    fun delayOf(guid: String): Long = MmkvManager.decodeServerAffiliationInfo(guid)?.testDelayMillis ?: 0L
-
-    /** A server of the list on the screen: its key, its name, and its delay (0 untested, below 0 failed). */
-    data class ServerRow(val guid: String, val name: String, val delayMillis: Long)
-
-    /** The servers of the subscription, in the order of the panel, for the list on the screen. */
-    fun serverRows(): List<ServerRow> =
-        serverCandidates().map { (guid, profile) -> ServerRow(guid, profile.remarks.trim(), delayOf(guid)) }
-
-    private const val PREF_MANUAL_SERVER = "phonix_manual_server"
+    /** A server at random among the candidates, those keyed in [exclude] left out. */
+    fun randomServer(exclude: Set<String> = emptySet()): String? =
+        serverCandidates().filter { (guid, _) -> guid !in exclude }.randomOrNull()?.first
 
     /**
-     * The key of the server the person chose by hand, null while the lowest delay decides. It is kept by name: the keys
-     * change with every update of the subscription, the names do not.
-     */
-    fun manualServerGuid(): String? {
-        val name = MmkvManager.decodeSettingsString(PREF_MANUAL_SERVER)?.takeIf { it.isNotEmpty() } ?: return null
-        return serverCandidates().firstOrNull { (_, profile) -> profile.remarks.trim() == name }?.first
-    }
-
-    /** Takes the choice of a server by hand: its name, or null to give the choice back to the lowest delay. */
-    fun setManualServerName(name: String?) {
-        MmkvManager.encodeSettings(PREF_MANUAL_SERVER, name.orEmpty())
-    }
-
-    /** Selects the server the person chose by hand, else the one with the lowest delay. */
-    fun applySelection() {
-        (manualServerGuid() ?: bestServer())?.let { MmkvManager.setSelectServer(it) }
-    }
-
-    /** The key of the server with the lowest delay among the candidates, those keyed in [exclude] left out. */
-    fun bestServer(exclude: Set<String> = emptySet()): String? =
-        serverCandidates()
-            .filter { (guid, _) -> guid !in exclude }
-            .minByOrNull { (guid, _) -> rank(delayOf(guid)) }
-            ?.first
-
-    /**
-     * Selects the server with the lowest delay when the one selected is none of the subscription's: nothing, or the
-     * Aether profile itself, which on its own goes nowhere past the tunnel.
+     * Selects a server at random when the one selected is none of the subscription's: nothing, or the Aether profile
+     * itself, which on its own goes nowhere past the tunnel.
      */
     fun ensureServerSelected() {
         val candidates = serverCandidates()
@@ -232,7 +192,7 @@ object PhonixPolicy {
             return
         }
         if (selected != null && candidates.any { it.first == selected }) return
-        bestServer()?.let { MmkvManager.setSelectServer(it) }
+        randomServer()?.let { MmkvManager.setSelectServer(it) }
     }
 
     /**

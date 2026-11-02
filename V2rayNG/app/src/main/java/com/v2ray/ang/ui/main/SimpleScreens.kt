@@ -225,7 +225,7 @@ fun KeyEntryScreen(
 
 /**
  * Second screen: the power button, and the subscription's name, traffic and expiry, which can only be looked at, with
- * its update; under it the servers with their delays, one of which can be chosen by hand, and at the end the
+ * its update; under it the servers by name, one of which can be chosen by hand, and at the end the
  * "Get new IP" scan. Nothing else of the app is reachable from here but the settings.
  */
 @Composable
@@ -241,9 +241,7 @@ internal fun SimpleHomeScreen(
     servers: List<PhonixPolicy.ServerRow>,
     selectedGuid: String?,
     manualSelection: Boolean,
-    isTesting: Boolean,
     onSelectServer: (String?) -> Unit,
-    onTestServers: () -> Unit,
     onToggle: () -> Unit,
     onUpdate: () -> Unit,
     onGetNewIp: () -> Unit,
@@ -430,7 +428,9 @@ internal fun SimpleHomeScreen(
                     }
                 }
 
-                if (info?.expired == true) {
+                // The time is over, or the traffic is used up
+                val ended = info != null && (info.expired || (info.totalBytes > 0L && info.usedBytes >= info.totalBytes))
+                if (ended) {
                     InfoRow(text = stringResource(R.string.ui_home_expired), color = c.inner, textColor = c.danger)
                 }
 
@@ -439,10 +439,7 @@ internal fun SimpleHomeScreen(
                     servers = servers,
                     selectedGuid = selectedGuid,
                     manualSelection = manualSelection,
-                    isTesting = isTesting,
-                    enabled = !preparing,
                     onSelect = onSelectServer,
-                    onTest = onTestServers,
                 )
 
                 Button(
@@ -472,38 +469,24 @@ internal fun SimpleHomeScreen(
     }
 }
 
-/** The servers of the subscription with their delays; one is picked by tapping it, "automatic" gives the pick back. */
+/** The servers of the subscription by name; one is picked by tapping it, "automatic" gives the pick back. */
 @Composable
 private fun ServersCard(
     colors: UiColors,
     servers: List<PhonixPolicy.ServerRow>,
     selectedGuid: String?,
     manualSelection: Boolean,
-    isTesting: Boolean,
-    enabled: Boolean,
     onSelect: (String?) -> Unit,
-    onTest: () -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = colors.inner) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.ui_servers_title),
-                    modifier = Modifier.weight(1f),
-                    color = colors.text,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                TextButton(onClick = onTest, enabled = enabled && !isTesting && servers.isNotEmpty()) {
-                    if (isTesting) {
-                        CircularProgressIndicator(Modifier.size(16.dp), color = colors.accent, strokeWidth = 2.dp)
-                        Spacer(Modifier.size(8.dp))
-                        Text(stringResource(R.string.ui_servers_testing), color = colors.accent, fontSize = 14.sp)
-                    } else {
-                        Text(stringResource(R.string.ui_servers_test), color = colors.accent, fontSize = 14.sp)
-                    }
-                }
-            }
+            Text(
+                text = stringResource(R.string.ui_servers_title),
+                modifier = Modifier.padding(bottom = 4.dp),
+                color = colors.text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+            )
             if (servers.isEmpty()) {
                 Text(
                     text = stringResource(R.string.ui_servers_empty),
@@ -515,29 +498,13 @@ private fun ServersCard(
                 ServerRowItem(
                     colors = colors,
                     name = stringResource(R.string.ui_servers_auto),
-                    delayText = "",
-                    delayColor = colors.subText,
                     selected = !manualSelection,
                     onClick = { onSelect(null) },
                 )
                 servers.forEach { server ->
-                    val delayText = when {
-                        server.delayMillis > 0L -> "${server.delayMillis} ms"
-                        server.delayMillis < 0L -> stringResource(R.string.ui_servers_timeout)
-                        else -> stringResource(R.string.ui_servers_untested)
-                    }
-                    val delayColor = when {
-                        server.delayMillis < 0L -> colors.danger
-                        server.delayMillis == 0L -> colors.subText
-                        server.delayMillis <= 600L -> Color(0xFF2E9E5B)
-                        server.delayMillis <= 1500L -> Color(0xFFE0A100)
-                        else -> colors.danger
-                    }
                     ServerRowItem(
                         colors = colors,
                         name = server.name,
-                        delayText = delayText,
-                        delayColor = delayColor,
                         selected = manualSelection && server.guid == selectedGuid,
                         onClick = { onSelect(server.guid) },
                     )
@@ -551,8 +518,6 @@ private fun ServersCard(
 private fun ServerRowItem(
     colors: UiColors,
     name: String,
-    delayText: String,
-    delayColor: Color,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -582,10 +547,6 @@ private fun ServerRowItem(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        if (delayText.isNotEmpty()) {
-            Spacer(Modifier.size(8.dp))
-            Text(text = delayText, color = delayColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        }
     }
 }
 

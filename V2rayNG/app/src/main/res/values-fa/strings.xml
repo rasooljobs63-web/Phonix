@@ -800,7 +800,7 @@
     <string name="ui_home_traffic_used">ترافیک مصرف‌شده</string>
     <string name="ui_home_expires">انقضا</string>
     <string name="ui_home_no_expiry">بدون انقضا</string>
-    <string name="ui_home_expired">اشتراک منقضی شده است.</string>
+    <string name="ui_home_expired">اشتراک شما به اتمام رسیده است.</string>
     <string name="ui_home_update_sub">به‌روزرسانی اشتراک</string>
     <string name="ui_home_get_new_ip">گرفتن آی‌پی جدید</string>
     <string name="ui_home_scanning">در حال اسکن…</string>
@@ -825,7 +825,7 @@
     <string name="ui_setup_failed">راه‌اندازی کامل نشد. اشتراک را به‌روزرسانی کنید و دوباره تلاش کنید.</string>
 
     <string name="ui_servers_title">سرورها</string>
-    <string name="ui_servers_auto">خودکار (کم‌ترین پینگ)</string>
+    <string name="ui_servers_auto">خودکار (تصادفی)</string>
     <string name="ui_servers_test">تست پینگ</string>
     <string name="ui_servers_testing">در حال تست…</string>
     <string name="ui_servers_timeout">ناموفق</string>

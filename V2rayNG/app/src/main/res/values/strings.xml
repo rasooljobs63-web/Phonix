@@ -808,7 +808,7 @@
     <string name="ui_home_traffic_used">Traffic used</string>
     <string name="ui_home_expires">Expires</string>
     <string name="ui_home_no_expiry">No expiry</string>
-    <string name="ui_home_expired">The subscription has expired.</string>
+    <string name="ui_home_expired">Your subscription has ended.</string>
     <string name="ui_home_update_sub">Update subscription</string>
     <string name="ui_home_get_new_ip">Get new IP</string>
     <string name="ui_home_scanning">Scanning…</string>
@@ -833,7 +833,7 @@
     <string name="ui_setup_failed">Setup did not finish. Update the subscription and try again.</string>
 
     <string name="ui_servers_title">Servers</string>
-    <string name="ui_servers_auto">Automatic (lowest ping)</string>
+    <string name="ui_servers_auto">Automatic (random)</string>
     <string name="ui_servers_test">Test ping</string>
     <string name="ui_servers_testing">Testing…</string>
     <string name="ui_servers_timeout">Failed</string>

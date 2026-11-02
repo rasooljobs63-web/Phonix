@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Phonix: watches the running connection and, when the server of the subscription it goes out through stops working,
- * selects the next one (best known delay first) and has the caller restart.
+ * selects another one, at random, and has the caller restart.
  *
  * The caller supplies the probe, true while the connection works or the probe cannot judge, and the restart.
  */
@@ -69,7 +69,7 @@ internal object PhonixFailover {
     }
 
     /**
-     * Selects the next server of the subscription, the one with the lowest delay among those not tried since the
+     * Selects the next server of the subscription, one at random among those not tried since the
      * connection last worked. False when the selected one is none of the subscription's, or none is left to try.
      */
     private fun switchServer(): Boolean {
@@ -79,7 +79,7 @@ internal object PhonixFailover {
         if (PhonixPolicy.serverCandidates().none { it.first == current }) return false
         val next = synchronized(tried) {
             tried.add(current)
-            PhonixPolicy.bestServer(exclude = tried.toSet()) ?: run { tried.clear(); null }
+            PhonixPolicy.randomServer(exclude = tried.toSet()) ?: run { tried.clear(); null }
         } ?: return false
         LogUtil.i(AppConfig.TAG, "PhonixFailover: switching to $next")
         MmkvManager.setSelectServer(next)
