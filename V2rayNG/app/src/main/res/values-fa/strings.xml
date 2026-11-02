@@ -834,4 +834,6 @@
     <string name="ui_servers_disconnect_first">ابتدا اتصال را قطع کنید، سپس پینگ را تست کنید</string>
     <string name="ui_servers_not_ready">راه‌اندازی هنوز کامل نشده است</string>
     <string name="ui_servers_busy">در حال انجام کار دیگر، کمی بعد دوباره تلاش کنید</string>
+    <string name="ui_device_limit">این کلید روی دستگاه دیگری فعال است یا ظرفیت دستگاه‌های آن پر شده است.</string>
+    <string name="ui_home_preparing">در حال آماده‌سازی اتصال…</string>
 </resources>

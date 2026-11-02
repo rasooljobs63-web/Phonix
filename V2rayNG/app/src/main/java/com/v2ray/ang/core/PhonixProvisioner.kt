@@ -3,6 +3,7 @@ package com.v2ray.ang.core
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.widget.Toast
 import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
@@ -27,7 +28,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -46,7 +46,13 @@ object PhonixProvisioner {
 
     private const val TAG = "PhonixProvisioner"
     private const val PING_TIMEOUT_MS = 150_000L
-    private const val START_PING_TIMEOUT_MS = 60_000L
+    private const val START_PING_TIMEOUT_MS = 20_000L
+
+    // Before a connection the servers are tested again only when the last test is older than this, and the test
+    // stops as soon as one server has answered after EARLY_EXIT_AFTER_MS: the connection must not wait for the slow ones
+    private const val FRESH_TEST_MS = 5 * 60_000L
+    private const val EARLY_EXIT_AFTER_MS = 6_000L
+    private const val PREF_LAST_TEST = "phonix_last_test"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val running = AtomicBoolean(false)
@@ -115,7 +121,10 @@ object PhonixProvisioner {
                 PhonixPolicy.ensureServerSelected()
                 return
             }
-            testAndSelect(context, servers.map { it.first }, START_PING_TIMEOUT_MS)
+            val guids = servers.map { it.first }
+            val fresh = System.currentTimeMillis() - lastTestTime() < FRESH_TEST_MS && guids.any { PhonixPolicy.delayOf(it) > 0L }
+            if (fresh) PhonixPolicy.applySelection()
+            else testAndSelect(context, guids, START_PING_TIMEOUT_MS, earlyExit = true)
         } finally {
             busy.unlock()
         }
@@ -235,14 +244,17 @@ object PhonixProvisioner {
     }
 
     /** Tests the servers [guids] from scratch, within [timeoutMs], and selects the one with the lowest delay. */
-    private suspend fun testAndSelect(context: Context, guids: List<String>, timeoutMs: Long) {
+    private suspend fun testAndSelect(context: Context, guids: List<String>, timeoutMs: Long, earlyExit: Boolean = false) {
         // A delay measured before says nothing of the connection now
         guids.forEach { MmkvManager.encodeServerTestDelayMillis(it, 0L) }
-        pingAll(context, guids, timeoutMs)
+        pingAll(context, guids, timeoutMs, earlyExit)
+        MmkvManager.encodeSettings(PREF_LAST_TEST, System.currentTimeMillis().toString())
         PhonixPolicy.applySelection()
     }
 
-    private suspend fun pingAll(context: Context, guids: List<String>, timeoutMs: Long) {
+    private fun lastTestTime(): Long = MmkvManager.decodeSettingsString(PREF_LAST_TEST)?.toLongOrNull() ?: 0L
+
+    private suspend fun pingAll(context: Context, guids: List<String>, timeoutMs: Long, earlyExit: Boolean = false) {
         val done = CompletableDeferred<Unit>()
         val worker = RealPingWorkerService(context, guids) { event ->
             when (event) {
@@ -252,7 +264,18 @@ object PhonixProvisioner {
             }
         }
         worker.start()
-        if (withTimeoutOrNull(timeoutMs) { done.await() } == null) worker.cancel()
+        try {
+            val began = SystemClock.elapsedRealtime()
+            while (!done.isCompleted) {
+                val elapsed = SystemClock.elapsedRealtime() - began
+                if (elapsed >= timeoutMs) break
+                if (earlyExit && elapsed >= EARLY_EXIT_AFTER_MS && guids.any { PhonixPolicy.delayOf(it) > 0L }) break
+                kotlinx.coroutines.delay(250L)
+            }
+        } finally {
+            // Also when the caller is cancelled: a test left running would go on in the background
+            if (!done.isCompleted) worker.cancel()
+        }
     }
 
     /** Registers the WARP keys [profile] needs when they are missing. */

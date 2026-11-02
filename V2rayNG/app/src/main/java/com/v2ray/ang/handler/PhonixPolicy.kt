@@ -1,5 +1,8 @@
 package com.v2ray.ang.handler
 
+import android.os.Build
+import android.provider.Settings
+import com.v2ray.ang.AngApplication
 import com.v2ray.ang.core.AetherExit
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.dto.entities.SubscriptionCache
@@ -7,8 +10,11 @@ import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
+import org.json.JSONObject
 import java.net.URI
+import java.security.MessageDigest
 import java.util.Locale
+import java.util.UUID
 
 /**
  * Phonix: the rules of this build.
@@ -60,6 +66,68 @@ object PhonixPolicy {
             .distinct()
             .toList()
         return candidates.takeIf { it.isNotEmpty() }?.joinToString("\n")
+    }
+
+    private const val PREF_DEVICE_ID = "phonix_device_id"
+
+    /**
+     * The identity of this device for the panel's device limit: 32 hex digits derived from the Android ID, so that
+     * the same device keeps it through a reinstall of the same build, and the raw ID never leaves the phone. It
+     * changes with the key the app is signed with, and with a factory reset.
+     */
+    fun deviceId(): String {
+        MmkvManager.decodeSettingsString(PREF_DEVICE_ID)?.takeIf { it.length == 32 }?.let { return it }
+        val androidId = try {
+            Settings.Secure.getString(AngApplication.application.contentResolver, Settings.Secure.ANDROID_ID)
+        } catch (_: Exception) {
+            null
+        }
+        // 9774d56d682e549c is the one value some broken builds give every device
+        val seed = androidId?.takeIf { it.isNotBlank() && it != "9774d56d682e549c" } ?: UUID.randomUUID().toString()
+        val id = MessageDigest.getInstance("SHA-256").digest("phonix:$seed".toByteArray())
+            .joinToString("") { "%02x".format(it) }
+            .take(32)
+        MmkvManager.encodeSettings(PREF_DEVICE_ID, id)
+        return id
+    }
+
+    /** The headers the subscription requests carry, as the JSON the subscription keeps them in. */
+    fun deviceHeadersJson(): String {
+        fun ascii(value: String) = value.filter { it.code in 32..126 }.trim().take(64).ifEmpty { "unknown" }
+        return JSONObject(
+            mapOf(
+                "x-hwid" to deviceId(),
+                "x-device-os" to "Android",
+                "x-ver-os" to ascii(Build.VERSION.RELEASE.orEmpty()),
+                "x-device-model" to ascii(Build.MODEL.orEmpty()),
+            )
+        ).toString()
+    }
+
+    /** Why the last request for a subscription failed, null when it did not. */
+    @Volatile
+    var lastFetchFailure: String? = null
+        private set
+
+    fun noteFetchFailure(error: Exception?) {
+        lastFetchFailure = error?.message
+    }
+
+    /** Whether the panel refused the last request for the 403 of a device limit reached. */
+    fun deviceLimitReached(): Boolean = lastFetchFailure?.contains("status code 403") == true
+
+    /**
+     * After an import: when the panel turned this device away, the subscription just added, which has no server, is
+     * removed again, so that the key screen stays. True when one was removed.
+     */
+    fun rejectIfDeviceLimit(): Boolean {
+        if (!deviceLimitReached()) return false
+        var removed = false
+        allowedSubs()
+            .filter { MmkvManager.decodeServerList(it.guid).isEmpty() }
+            .forEach { removed = MmkvManager.tryRemoveSubscription(it.guid) || removed }
+        lastFetchFailure = null
+        return removed
     }
 
     /** The subscriptions of the allowed domain. */
@@ -221,6 +289,8 @@ object PhonixPolicy {
             if (item.allowInsecureUrl) { item.allowInsecureUrl = false; changed = true }
             if (allowed) {
                 if (item.userAgent != SUB_USER_AGENT) { item.userAgent = SUB_USER_AGENT; changed = true }
+                val headers = deviceHeadersJson()
+                if (item.requestHeaders != headers) { item.requestHeaders = headers; changed = true }
                 if (!item.enabled) { item.enabled = true; changed = true }
                 if (item.remarks.isBlank()) { item.remarks = "Phonix"; changed = true }
             }

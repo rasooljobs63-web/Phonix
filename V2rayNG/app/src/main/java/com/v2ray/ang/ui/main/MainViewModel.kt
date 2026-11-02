@@ -18,6 +18,7 @@ import com.v2ray.ang.extension.delay
 import com.v2ray.ang.extension.isComplexType
 import com.v2ray.ang.extension.matchesPattern
 import com.v2ray.ang.extension.moveItem
+import com.v2ray.ang.handler.PhonixPolicy
 import com.v2ray.ang.handler.SubscriptionInfoParser
 import com.v2ray.ang.ui.base.BaseViewModel
 import com.v2ray.ang.util.LogUtil
@@ -642,7 +643,11 @@ class MainViewModel(
                             setupGroupTab(forceRefresh = true)
                         }
 
-                        countSub > 0 -> setupGroupTab(forceRefresh = true)
+                        countSub > 0 -> {
+                            // Phonix: a panel that turned this device away leaves no subscription behind
+                            if (PhonixPolicy.rejectIfDeviceLimit()) toastError(R.string.ui_device_limit)
+                            setupGroupTab(forceRefresh = true)
+                        }
                         else -> toastError(R.string.toast_failure)
                     }
                 } catch (cancelled: CancellationException) {

@@ -73,6 +73,11 @@ class MainActivity : HelperBaseComponentActivity() {
     /** Counts the moments the key may have changed, so that the screen looks for it again. */
     private val keyRevision = mutableIntStateOf(0)
 
+    // Phonix: true from a press of the power button until the connection is up, so that a second press does not start a
+    // second connection while the first prepares
+    private val startingState = mutableStateOf(false)
+    private var startJob: kotlinx.coroutines.Job? = null
+
     private val requestVpnPermission =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (it.resultCode == RESULT_OK) startV2Ray()
@@ -167,7 +172,12 @@ class MainActivity : HelperBaseComponentActivity() {
             SimpleHomeScreen(
                 title = PhonixPolicy.aetherNameOf(sub),
                 info = info,
-                statusText = if (scanning) stringResource(R.string.ui_home_scanning) else statusText,
+                statusText = when {
+                    scanning -> stringResource(R.string.ui_home_scanning)
+                    startingState.value && !uiState.isRunning -> stringResource(R.string.ui_home_preparing)
+                    else -> statusText
+                },
+                isStarting = startingState.value && !uiState.isRunning,
                 isRunning = uiState.isRunning,
                 isUpdating = isLoading,
                 isScanning = scanning,
@@ -284,7 +294,7 @@ class MainActivity : HelperBaseComponentActivity() {
             // A service whose process died takes no stop and answers nothing; asking for its state right
             // after lets that silence show the screen as stopped instead of leaving it connected.
             mainViewModel.onAction(MainAction.RefreshServiceState)
-        } else {
+        } else if (!startingState.value) {
             requestServiceStart()
         }
     }
@@ -315,9 +325,17 @@ class MainActivity : HelperBaseComponentActivity() {
         }
         // Phonix: the servers of the subscription are tested through the tunnel before each connection, and the one
         // with the lowest delay is the one that connects
-        lifecycleScope.launch {
-            withContext(Dispatchers.IO) { com.v2ray.ang.core.PhonixProvisioner.prepareStart(this@MainActivity) }
-            LauncherManager.startService(this@MainActivity)
+        if (startJob?.isActive == true) return
+        startingState.value = true
+        startJob = lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) { com.v2ray.ang.core.PhonixProvisioner.prepareStart(this@MainActivity) }
+                LauncherManager.startService(this@MainActivity)
+                // The service takes a moment to report that it runs; a press in between would start it again
+                kotlinx.coroutines.delay(2500L)
+            } finally {
+                startingState.value = false
+            }
         }
     }
 

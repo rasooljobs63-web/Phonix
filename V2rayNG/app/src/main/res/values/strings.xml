@@ -842,4 +842,6 @@
     <string name="ui_servers_disconnect_first">Disconnect first, then test the ping</string>
     <string name="ui_servers_not_ready">The setup is not finished yet</string>
     <string name="ui_servers_busy">Something else is running, try again in a moment</string>
+    <string name="ui_device_limit">This key is already active on another device, or its device limit is reached.</string>
+    <string name="ui_home_preparing">Preparing the connection…</string>
 </resources>

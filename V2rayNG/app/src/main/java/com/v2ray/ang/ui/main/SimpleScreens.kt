@@ -236,6 +236,7 @@ internal fun SimpleHomeScreen(
     isRunning: Boolean,
     isUpdating: Boolean,
     isScanning: Boolean,
+    isStarting: Boolean,
     setupState: PhonixProvisioner.Setup,
     servers: List<PhonixPolicy.ServerRow>,
     selectedGuid: String?,
@@ -291,17 +292,21 @@ internal fun SimpleHomeScreen(
                     .border(BorderStroke(8.dp, ring), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_power_24dp),
-                    contentDescription = null,
-                    modifier = Modifier.size(84.dp),
-                    tint = ring,
-                )
+                if (isStarting) {
+                    CircularProgressIndicator(Modifier.size(84.dp), color = c.accent, strokeWidth = 6.dp)
+                } else {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_power_24dp),
+                        contentDescription = null,
+                        modifier = Modifier.size(84.dp),
+                        tint = ring,
+                    )
+                }
             }
         }
         Spacer(Modifier.height(16.dp))
         val shownStatus = when {
-            isRunning || isScanning -> statusText
+            isRunning || isScanning || isStarting -> statusText
             setupState == PhonixProvisioner.Setup.READY -> stringResource(R.string.ui_setup_ready)
             setupState == PhonixProvisioner.Setup.FAILED -> stringResource(R.string.ui_setup_failed)
             else -> statusText

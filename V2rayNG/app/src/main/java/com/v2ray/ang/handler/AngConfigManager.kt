@@ -576,6 +576,7 @@ object AngConfigManager {
                 )
             } catch (e: Exception) {
                 LogUtil.e(AppConfig.ANG_PACKAGE, "Update subscription: proxy not ready or other error", e)
+                PhonixPolicy.noteFetchFailure(e)
                 ""
             }
             if (configText.isEmpty()) {
@@ -590,9 +591,11 @@ object AngConfigManager {
                     )
                 } catch (e: Exception) {
                     LogUtil.e(AppConfig.TAG, "Update subscription: Failed to get URL content with user agent", e)
+                    PhonixPolicy.noteFetchFailure(e)
                     ""
                 }
             }
+            if (configText.isNotEmpty()) PhonixPolicy.noteFetchFailure(null)
             if (configText.isEmpty()) {
                 return SubscriptionUpdateResult(failureCount = 1)
             }
