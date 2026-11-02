@@ -174,6 +174,34 @@ object PhonixPolicy {
             .mapNotNull { guid -> MmkvManager.decodeServerConfig(guid)?.let { guid to it } }
             .filter { (_, profile) -> AetherExit.takesAsNode(profile) }
 
+    /** A server of the list on the screen: its key and its name. */
+    data class ServerRow(val guid: String, val name: String)
+
+    /** The servers of the subscription, in the order of the panel, for the list on the screen. */
+    fun serverRows(): List<ServerRow> =
+        serverCandidates().map { (guid, profile) -> ServerRow(guid, profile.remarks.trim()) }
+
+    private const val PREF_MANUAL_SERVER = "phonix_manual_server"
+
+    /**
+     * The key of the server the person chose by hand, null while a server at random decides. It is kept by name: the
+     * keys change with every update of the subscription, the names do not.
+     */
+    fun manualServerGuid(): String? {
+        val name = MmkvManager.decodeSettingsString(PREF_MANUAL_SERVER)?.takeIf { it.isNotEmpty() } ?: return null
+        return serverCandidates().firstOrNull { (_, profile) -> profile.remarks.trim() == name }?.first
+    }
+
+    /** Takes the choice of a server by hand: its name, or null to give the choice back to the random pick. */
+    fun setManualServerName(name: String?) {
+        MmkvManager.encodeSettings(PREF_MANUAL_SERVER, name.orEmpty())
+    }
+
+    /** Selects the server the person chose by hand, else one at random. */
+    fun applySelection() {
+        (manualServerGuid() ?: randomServer())?.let { MmkvManager.setSelectServer(it) }
+    }
+
     /** A server at random among the candidates, those keyed in [exclude] left out. */
     fun randomServer(exclude: Set<String> = emptySet()): String? =
         serverCandidates().filter { (guid, _) -> guid !in exclude }.randomOrNull()?.first
