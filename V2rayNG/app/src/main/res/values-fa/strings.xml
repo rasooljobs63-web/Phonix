@@ -836,4 +836,13 @@
     <string name="ui_servers_busy">در حال انجام کار دیگر، کمی بعد دوباره تلاش کنید</string>
     <string name="ui_device_limit">این کلید روی دستگاه دیگری فعال است یا ظرفیت دستگاه‌های آن پر شده است.</string>
     <string name="ui_home_preparing">در حال آماده‌سازی اتصال…</string>
+    <string name="ui_phonix_updating">در حال به‌روزرسانی اشتراک…</string>
+    <string name="ui_phonix_no_servers">اشتراک هنوز سروری ندارد</string>
+    <string name="ui_phonix_servers_unusable">%1$d سرور در اشتراک هست ولی هیچ‌کدام قابل استفاده نیست (%2$s)</string>
+    <string name="ui_phonix_scanning">در حال اسکن نقطه‌ی اتصال (endpoint)…</string>
+    <string name="ui_phonix_missing_keys">کلید WARP دریافت نشد، دفعه‌ی بعد دوباره تلاش می‌شود</string>
+    <string name="ui_phonix_missing_endpoint">نقطه‌ی اتصال (endpoint) پیدا نشد، دفعه‌ی بعد دوباره تلاش می‌شود</string>
+    <string name="ui_phonix_ready">آماده است</string>
+    <string name="ui_phonix_getting_keys">در حال دریافت کلید WARP…</string>
+    <string name="ui_phonix_variant_next">اتصال برقرار نشد، روش دیگری امتحان می‌شود…</string>
 </resources>

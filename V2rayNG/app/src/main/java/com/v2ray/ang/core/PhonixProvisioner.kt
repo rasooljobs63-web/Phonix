@@ -4,11 +4,15 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
+import androidx.annotation.StringRes
 import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherKeyKind
 import com.v2ray.ang.handler.AngConfigManager
+import com.v2ray.ang.handler.AppLocaleManager
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.PhonixPolicy
 import com.v2ray.ang.helper.MessageHelper
@@ -24,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -42,6 +47,11 @@ object PhonixProvisioner {
 
     private const val TAG = "PhonixProvisioner"
 
+    // How long a scan for an endpoint may go on with one way into the tunnel: the first gets the time a scan needs,
+    // the others only as long as it takes to see that they do not connect
+    private const val FIRST_SCAN_MS = 3 * 60_000L
+    private const val NEXT_SCAN_MS = 90_000L
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val running = AtomicBoolean(false)
     private val again = AtomicBoolean(false)
@@ -58,6 +68,7 @@ object PhonixProvisioner {
     fun reset() {
         setupFlow.value = Setup.IDLE
         PhonixPolicy.setManualServerName(null)
+        PhonixPolicy.applyVariant(0)
     }
 
     /** Whether the profile, its endpoint and the servers are not all there yet: the setup is still the first one. */
@@ -139,7 +150,9 @@ object PhonixProvisioner {
         if (!PhonixPolicy.ensureAetherProfile()) return false
         PhonixPolicy.ensureAetherName(subs.first())
         val (aetherGuid, _) = PhonixPolicy.findAetherProfile() ?: return false
+        // Dialing out on its own, by the way into the tunnel that worked last, also for a profile an earlier build made
         update(aetherGuid) { it.aetherExitNode = null }
+        PhonixPolicy.applyVariant(PhonixPolicy.variantIndex())
         PhonixPolicy.uniquifyServerNames()
         PhonixPolicy.ensureChainForAllSubs()
         PhonixPolicy.ensureServerSelected()
@@ -148,7 +161,7 @@ object PhonixProvisioner {
         var servers = PhonixPolicy.serverCandidates()
         // Servers stored before the request name was set may be whole configurations: fetched again, once
         if (servers.isEmpty() && refetched.compareAndSet(false, true)) {
-            toast(context, "Phonix: updating the subscription…")
+            toast(context, R.string.ui_phonix_updating)
             AngConfigManager.updateConfigViaSubAll()
             PhonixPolicy.uniquifyServerNames()
             PhonixPolicy.ensureChainForAllSubs()
@@ -158,40 +171,52 @@ object PhonixProvisioner {
         if (servers.isEmpty()) {
             val stored = subs.flatMap { sub -> MmkvManager.decodeServerList(sub.guid) }
                 .mapNotNull { MmkvManager.decodeServerConfig(it) }
-            toast(
-                context,
-                if (stored.isEmpty()) "Phonix: the subscription has no servers yet"
-                else "Phonix: ${stored.size} servers in the subscription, none can be used (${stored.map { it.configType.name }.distinct().joinToString()})"
-            )
+            if (stored.isEmpty()) toast(context, R.string.ui_phonix_no_servers)
+            else toast(context, R.string.ui_phonix_servers_unusable, stored.size, stored.map { it.configType.name }.distinct().joinToString())
             return false
         }
 
         // A live Aether session is not disturbed: its core, its keys and its profile stay as they are.
         if (AetherEditorRepository(context).activeSession() != null) return true
 
-        // 2. The WARP keys, and 3. the endpoint
-        val profile = MmkvManager.decodeServerConfig(aetherGuid) ?: return false
-        val keysReady = ensureKeys(context, profile)
-        var endpointReady = !profile.server.isNullOrBlank() && !profile.serverPort.isNullOrBlank()
-        if (!endpointReady && keysReady) {
-            toast(context, "Phonix: scanning for an endpoint…")
-            AetherScanner.scan(context, profile)?.let { result ->
-                update(aetherGuid) {
-                    it.server = result.endpoint.host
-                    it.serverPort = result.endpoint.port.toString()
+        // 2. The WARP keys, and 3. the endpoint. When one way into the tunnel gets neither, the next is tried: the
+        // fingerprints of Chrome, Firefox and Chrome 120 in turn, then the same with each final mask
+        var keysReady = false
+        var endpointReady = false
+        var index = PhonixPolicy.variantIndex()
+        for (attempt in PhonixPolicy.variants.indices) {
+            PhonixPolicy.applyVariant(index)
+            val profile = MmkvManager.decodeServerConfig(aetherGuid) ?: return false
+            keysReady = ensureKeys(context, profile)
+            endpointReady = !profile.server.isNullOrBlank() && !profile.serverPort.isNullOrBlank()
+            if (keysReady && !endpointReady) {
+                toast(context, R.string.ui_phonix_scanning)
+                val result = withTimeoutOrNull(if (attempt == 0) FIRST_SCAN_MS else NEXT_SCAN_MS) {
+                    AetherScanner.scan(context, profile)
                 }
-                endpointReady = true
+                if (result != null) {
+                    update(aetherGuid) {
+                        it.server = result.endpoint.host
+                        it.serverPort = result.endpoint.port.toString()
+                    }
+                    endpointReady = true
+                }
             }
+            if (keysReady && endpointReady) break
+            index = (index + 1) % PhonixPolicy.variants.size
+            toast(context, R.string.ui_phonix_variant_next)
         }
         if (!keysReady || !endpointReady) {
-            toast(context, "Phonix: ${if (!keysReady) "WARP keys" else "endpoint"} missing, it is retried at the next start")
+            // The next start goes on from the next way
+            PhonixPolicy.applyVariant(index)
+            toast(context, if (!keysReady) R.string.ui_phonix_missing_keys else R.string.ui_phonix_missing_endpoint)
             notifyUi(context)
             return false
         }
 
         // 4. A server is selected, the one chosen by hand or one at random
         PhonixPolicy.applySelection()
-        toast(context, "Phonix: ready")
+        toast(context, R.string.ui_phonix_ready)
         notifyUi(context)
         return true
     }
@@ -200,8 +225,12 @@ object PhonixProvisioner {
     private suspend fun ensureKeys(context: Context, profile: ProfileItem): Boolean {
         val needed = AetherIdentityManager.filesNeededBy(AetherCoreManager.buildArguments(profile, 0, scan = true))
         if (AetherIdentityManager.missing(context, needed).isEmpty()) return true
-        toast(context, "Phonix: getting the WARP keys…")
-        val settings = AetherKeysSettings(kind = AetherKeyKind.MASQUE)
+        toast(context, R.string.ui_phonix_getting_keys)
+        val settings = AetherKeysSettings(
+            kind = AetherKeyKind.MASQUE,
+            fingerprint = AetherFingerprint.fromString(profile.aetherFingerprint),
+            finalMask = profile.finalMask.orEmpty(),
+        )
         val arguments = AetherKeys.runArguments(settings)
         val kind = AetherKeys.kindOf(arguments) ?: return false
         AetherIdentityManager.renew(context, kind, arguments, settings.exit) { }
@@ -225,7 +254,9 @@ object PhonixProvisioner {
         }
     }
 
-    private fun toast(context: Context, text: String) {
+    /** A message in the language of the app, shown from any thread. */
+    private fun toast(context: Context, @StringRes id: Int, vararg args: Any) {
+        val text = AppLocaleManager.localizedContext(context).getString(id, *args)
         Handler(Looper.getMainLooper()).post { Toast.makeText(context, text, Toast.LENGTH_LONG).show() }
     }
 }

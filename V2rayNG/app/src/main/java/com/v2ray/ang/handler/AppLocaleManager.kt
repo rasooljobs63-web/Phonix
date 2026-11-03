@@ -21,10 +21,29 @@ object AppLocaleManager {
      * Migrates the existing MMKV language preference and restores it before the first activity.
      */
     fun initialize(context: Context) {
+        applyPersianOnce(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Api33.prepareMigration(context)
         } else {
             initializeCompat(context)
+        }
+    }
+
+    private const val PREF_PERSIAN_APPLIED = "phonix_persian_default_applied"
+
+    /**
+     * Phonix: the app starts in Persian, once, whatever language an earlier install left behind (the system's, or one
+     * chosen before): a person who picks another language afterwards keeps it.
+     */
+    private fun applyPersianOnce(context: Context) {
+        if (MmkvManager.decodeSettingsBool(PREF_PERSIAN_APPLIED, false)) return
+        MmkvManager.encodeSettings(PREF_PERSIAN_APPLIED, true)
+        MmkvManager.encodeSettings(AppConfig.PREF_LANGUAGE, Language.PERSIAN.code)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.getSystemService(LocaleManager::class.java).applicationLocales =
+                android.os.LocaleList(requireNotNull(Language.PERSIAN.locale))
+        } else {
+            AppCompatDelegate.setApplicationLocales(Language.PERSIAN.toLocaleList())
         }
     }
 

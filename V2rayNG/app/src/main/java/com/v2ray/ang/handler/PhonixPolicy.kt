@@ -4,6 +4,7 @@ import android.os.Build
 import android.provider.Settings
 import com.v2ray.ang.AngApplication
 import com.v2ray.ang.core.AetherExit
+import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.dto.entities.SubscriptionCache
 import com.v2ray.ang.dto.entities.SubscriptionItem
@@ -128,6 +129,50 @@ object PhonixPolicy {
             .forEach { removed = MmkvManager.tryRemoveSubscription(it.guid) || removed }
         lastFetchFailure = null
         return removed
+    }
+
+    /** A way of reaching the tunnel: the TLS fingerprint of the core, and the final mask of its connection, if any. */
+    data class Variant(val fingerprint: AetherFingerprint, val finalMask: String?)
+
+    // The two final masks that split the TLS hello of a TCP connection, the ones of the list in the editor
+    private const val MASK_TLSHELLO =
+        """{"tcp":[{"type":"fragment","settings":{"packets":"tlshello","lengths":["6","98","1"],"delays":["0"],"maxSplit":"0"}},{"type":"fragment","settings":{"packets":"1-1","lengths":["114","1"],"delays":["1"],"maxSplit":"11"}}]}"""
+    private const val MASK_TLSHELLO_0_LEN =
+        """{"tcp":[{"type":"fragment","settings":{"packets":"tlshello","lengths":["0","104","1"],"delays":["0"],"maxSplit":"0"}},{"type":"fragment","settings":{"packets":"1-1","lengths":["114","1"],"delays":["1"],"maxSplit":"11"}}]}"""
+
+    /**
+     * The ways of reaching the tunnel, in the order they are tried when one does not connect: the fingerprints of
+     * Chrome, Firefox and Chrome 120 with no final mask, then the same three with each of the final masks.
+     */
+    val variants: List<Variant> = listOf(null, MASK_TLSHELLO, MASK_TLSHELLO_0_LEN).flatMap { mask ->
+        listOf(AetherFingerprint.CHROME, AetherFingerprint.FIREFOX, AetherFingerprint.CHROME_120)
+            .map { Variant(it, mask) }
+    }
+
+    private const val PREF_VARIANT = "phonix_variant"
+
+    /** The index in [variants] of the way the Aether profile is set to. */
+    fun variantIndex(): Int =
+        MmkvManager.decodeSettingsString(PREF_VARIANT)?.toIntOrNull()?.takeIf { it in variants.indices } ?: 0
+
+    /** Sets the Aether profile to the way [index] of [variants], and remembers it. */
+    fun applyVariant(index: Int) {
+        val at = index.coerceIn(variants.indices)
+        val variant = variants[at]
+        MmkvManager.encodeSettings(PREF_VARIANT, at.toString())
+        val (guid, profile) = findAetherProfile() ?: return
+        if (profile.aetherFingerprint == variant.fingerprint.type && profile.finalMask == variant.finalMask) return
+        profile.aetherFingerprint = variant.fingerprint.type
+        profile.finalMask = variant.finalMask
+        store(guid, profile)
+    }
+
+    /** Moves to the next way, the first one after the last; null when there is no Aether profile. */
+    fun advanceVariant(): Int? {
+        if (findAetherProfile() == null) return null
+        val next = (variantIndex() + 1) % variants.size
+        applyVariant(next)
+        return next
     }
 
     /** The subscriptions of the allowed domain. */

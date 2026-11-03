@@ -168,22 +168,25 @@ object CoreServiceManager {
 
     /**
      * Phonix: whether the running connection works, by the delay test the main screen uses. True also when the test
-     * cannot judge: a reload or a warm-up under way, an Aether core that does not listen, or no network underneath.
+     * cannot judge: a reload or a warm-up under way, or no network underneath. An Aether core that does not listen is the
+     * tunnel being down, not a server failing.
      */
-    private suspend fun probeConnection(): Boolean {
-        val service = getService() ?: return true
-        if (!isRunning() || isReloading || isAetherWarmingUp()) return true
-        if (!hasValidatedUnderlyingNetwork(service)) return true
-        if (currentAether != null && !AetherCoreManager.awaitListening(AetherDelayTester.TEST_BUDGET_MS)) return true
+    private suspend fun probeConnection(): PhonixFailover.Probe {
+        val service = getService() ?: return PhonixFailover.Probe.OK
+        if (!isRunning() || isReloading || isAetherWarmingUp()) return PhonixFailover.Probe.OK
+        if (!hasValidatedUnderlyingNetwork(service)) return PhonixFailover.Probe.OK
+        if (currentAether != null && !AetherCoreManager.awaitListening(AetherDelayTester.TEST_BUDGET_MS)) {
+            return PhonixFailover.Probe.TUNNEL_DOWN
+        }
         for (second in listOf(false, true)) {
             val time = try {
                 coreController.measureDelay(SettingsManager.getDelayTestUrl(second))
             } catch (e: Exception) {
                 -1L
             }
-            if (time >= 0L) return true
+            if (time >= 0L) return PhonixFailover.Probe.OK
         }
-        return false
+        return PhonixFailover.Probe.SERVER_FAIL
     }
 
     private fun hasValidatedUnderlyingNetwork(service: Service): Boolean {
