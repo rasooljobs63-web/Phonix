@@ -845,4 +845,15 @@
     <string name="ui_phonix_ready">آماده است</string>
     <string name="ui_phonix_getting_keys">در حال دریافت کلید WARP…</string>
     <string name="ui_phonix_variant_next">اتصال برقرار نشد، روش دیگری امتحان می‌شود…</string>
+    <string name="ui_nav_home">اتصال</string>
+    <string name="ui_nav_servers">سرورها</string>
+    <string name="ui_nav_profile">پروفایل</string>
+    <string name="ui_nav_menu">منو</string>
+    <string name="ui_home_download">دانلود</string>
+    <string name="ui_home_upload">آپلود</string>
+    <string name="ui_servers_manual">انتخاب شما</string>
+    <string name="ui_servers_search_hint">جست‌وجوی سرور</string>
+    <string name="ui_profile_remaining">باقی‌مانده</string>
+    <string name="ui_profile_days_left">%1$d روز باقی مانده</string>
+    <string name="ui_ended_title">هشدار</string>
 </resources>

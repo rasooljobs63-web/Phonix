@@ -853,4 +853,15 @@
     <string name="ui_phonix_ready">Ready</string>
     <string name="ui_phonix_getting_keys">Getting the WARP keys…</string>
     <string name="ui_phonix_variant_next">The connection did not come up, trying another method…</string>
+    <string name="ui_nav_home">Connection</string>
+    <string name="ui_nav_servers">Servers</string>
+    <string name="ui_nav_profile">Profile</string>
+    <string name="ui_nav_menu">Menu</string>
+    <string name="ui_home_download">Download</string>
+    <string name="ui_home_upload">Upload</string>
+    <string name="ui_servers_manual">Chosen by you</string>
+    <string name="ui_servers_search_hint">Search servers</string>
+    <string name="ui_profile_remaining">Remaining</string>
+    <string name="ui_profile_days_left">%1$d days left</string>
+    <string name="ui_ended_title">Warning</string>
 </resources>

@@ -2,13 +2,17 @@ package com.v2ray.ang.ui.main
 
 import android.content.Intent
 import android.net.VpnService
+import android.net.TrafficStats
 import android.os.Build
+import android.os.Process
+import android.os.SystemClock
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +35,7 @@ import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastError
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.AngConfigManager
+import com.v2ray.ang.handler.AppLocaleManager
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsChangeManager
 import com.v2ray.ang.handler.SettingsManager
@@ -160,6 +165,38 @@ class MainActivity : HelperBaseComponentActivity() {
                 PhonixPolicy.serverRows()
             }
             val manualGuid = remember(servers, serversRevision) { PhonixPolicy.manualServerGuid() }
+            // The speeds: what this app moves over the network each second, the tunnel's own traffic included
+            var downloadSpeed by remember { mutableStateOf(0L) }
+            var uploadSpeed by remember { mutableStateOf(0L) }
+            LaunchedEffect(uiState.isRunning) {
+                downloadSpeed = 0L
+                uploadSpeed = 0L
+                if (!uiState.isRunning) return@LaunchedEffect
+                val uid = Process.myUid()
+                var lastRx = TrafficStats.getUidRxBytes(uid)
+                var lastTx = TrafficStats.getUidTxBytes(uid)
+                var lastTime = SystemClock.elapsedRealtime()
+                while (true) {
+                    kotlinx.coroutines.delay(1000L)
+                    val now = SystemClock.elapsedRealtime()
+                    val rx = TrafficStats.getUidRxBytes(uid)
+                    val tx = TrafficStats.getUidTxBytes(uid)
+                    val seconds = ((now - lastTime) / 1000.0).coerceAtLeast(0.2)
+                    if (rx != TrafficStats.UNSUPPORTED.toLong() && lastRx != TrafficStats.UNSUPPORTED.toLong()) {
+                        downloadSpeed = ((rx - lastRx) / seconds).toLong()
+                    }
+                    if (tx != TrafficStats.UNSUPPORTED.toLong() && lastTx != TrafficStats.UNSUPPORTED.toLong()) {
+                        uploadSpeed = ((tx - lastTx) / seconds).toLong()
+                    }
+                    lastRx = rx
+                    lastTx = tx
+                    lastTime = now
+                }
+            }
+            var language by remember {
+                mutableStateOf(MmkvManager.decodeSettingsString(AppConfig.PREF_LANGUAGE, "auto") ?: "auto")
+            }
+            val isPersian = language == "fa" || (language == "auto" && Utils.getSysLocale().language == "fa")
             val info = remember(sub) {
                 sub.subscription.usageInfo?.let { buildSubscriptionInfoUiModel(it, System.currentTimeMillis()) }
             }
@@ -184,6 +221,9 @@ class MainActivity : HelperBaseComponentActivity() {
                 servers = servers,
                 selectedGuid = uiState.selectedGuid,
                 manualSelection = manualGuid != null,
+                downloadSpeed = downloadSpeed,
+                uploadSpeed = uploadSpeed,
+                isPersian = isPersian,
                 onSelectServer = { guid ->
                     // null gives the pick back to the lowest delay; a key is a server chosen by hand
                     PhonixPolicy.setManualServerName(guid?.let { key -> servers.firstOrNull { it.guid == key }?.name })
@@ -217,8 +257,33 @@ class MainActivity : HelperBaseComponentActivity() {
                         }
                     }
                 },
-                onOpenSettings = { navigateTo(MainDestination.Settings) },
+                onSetLanguage = { code ->
+                    language = code
+                    AppLocaleManager.setApplicationLanguage(code)
+                },
+                onLogout = ::logout,
             )
+        }
+    }
+
+    /** Stops the connection, removes the subscriptions and every profile, and goes back to the key screen. */
+    private fun logout() {
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    LauncherManager.stopService(applicationContext)
+                    MmkvManager.decodeSubscriptions()
+                        .filter { it.subscription.url.isNotBlank() }
+                        .forEach { MmkvManager.tryRemoveSubscription(it.guid) }
+                    MmkvManager.removeAllServer()
+                    MmkvManager.setSelectServer("")
+                    PhonixProvisioner.reset()
+                } catch (e: Exception) {
+                    LogUtil.e(AppConfig.TAG, "Failed to log out", e)
+                }
+            }
+            mainViewModel.onAction(MainAction.RefreshGroups)
+            keyRevision.intValue++
         }
     }
 
