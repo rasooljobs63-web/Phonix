@@ -856,6 +856,7 @@
     <string name="ui_nav_home">Connection</string>
     <string name="ui_nav_servers">Servers</string>
     <string name="ui_nav_profile">Profile</string>
+    <string name="ui_menu_update_app">Update software</string>
     <string name="ui_nav_menu">Menu</string>
     <string name="ui_home_download">Download</string>
     <string name="ui_home_upload">Upload</string>

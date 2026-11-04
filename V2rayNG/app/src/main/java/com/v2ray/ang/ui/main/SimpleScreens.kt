@@ -846,6 +846,33 @@ private fun MenuTab(
                 )
             }
         }
+        val menuContext = androidx.compose.ui.platform.LocalContext.current
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .clickable {
+                    try {
+                        menuContext.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://netlixy.ir/dl/Phonix_universal.apk")
+                            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    } catch (_: Exception) {
+                    }
+                },
+            shape = RoundedCornerShape(24.dp),
+            color = c.card,
+        ) {
+            Text(
+                text = stringResource(R.string.ui_menu_update_app),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                color = c.text,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
         Surface(
             modifier = Modifier
                 .fillMaxWidth()

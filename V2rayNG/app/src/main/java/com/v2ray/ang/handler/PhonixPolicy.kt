@@ -324,6 +324,7 @@ object PhonixPolicy {
                 if (item.userAgent != SUB_USER_AGENT) { item.userAgent = SUB_USER_AGENT; changed = true }
                 val headers = deviceHeadersJson()
                 if (item.requestHeaders != headers) { item.requestHeaders = headers; changed = true }
+                if (!item.autoUpdate || item.updateInterval != 20L) { item.autoUpdate = true; item.updateInterval = 20L; changed = true }
                 if (!item.enabled) { item.enabled = true; changed = true }
                 if (item.remarks.isBlank()) { item.remarks = "Phonix"; changed = true }
             }

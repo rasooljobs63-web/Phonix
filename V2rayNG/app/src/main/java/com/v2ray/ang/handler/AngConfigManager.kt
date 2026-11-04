@@ -692,7 +692,7 @@ object AngConfigManager {
         subItem.url = url
         // Phonix: updated by itself.
         subItem.autoUpdate = true
-        subItem.updateInterval = 180
+        subItem.updateInterval = 20
         subItem.userAgent = PhonixPolicy.SUB_USER_AGENT
         // PattNG: stored and listed in one hold of the profile index lock, checked; a refusal is logged there.
         return if (MmkvManager.tryEncodeSubscription("", subItem) != null) 1 else 0

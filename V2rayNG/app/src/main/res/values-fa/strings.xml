@@ -848,6 +848,7 @@
     <string name="ui_nav_home">اتصال</string>
     <string name="ui_nav_servers">سرورها</string>
     <string name="ui_nav_profile">پروفایل</string>
+    <string name="ui_menu_update_app">به‌روزرسانی نرم‌افزار</string>
     <string name="ui_nav_menu">منو</string>
     <string name="ui_home_download">دانلود</string>
     <string name="ui_home_upload">آپلود</string>
