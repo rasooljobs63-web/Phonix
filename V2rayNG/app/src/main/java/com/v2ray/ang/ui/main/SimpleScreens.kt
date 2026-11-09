@@ -315,6 +315,10 @@ internal fun SimpleHomeScreen(
                     locationName = servers.firstOrNull { it.guid == selectedGuid }?.name ?: "\u2014",
                     onToggle = onToggle,
                     onOpenServers = { tabIndex = HomeTab.SERVERS.ordinal },
+                    title = title,
+                    info = info,
+                    isUpdating = isUpdating,
+                    onUpdate = onUpdate,
                 )
 
                 HomeTab.SERVERS -> ServersTab(
@@ -380,6 +384,10 @@ private fun ConnectionTab(
     locationName: String,
     onToggle: () -> Unit,
     onOpenServers: () -> Unit,
+    title: String,
+    info: SubscriptionInfoUiModel?,
+    isUpdating: Boolean,
+    onUpdate: () -> Unit,
 ) {
     val preparing = setupState == PhonixProvisioner.Setup.PREPARING
     Column(
@@ -394,16 +402,9 @@ private fun ConnectionTab(
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
         )
-        Spacer(Modifier.height(16.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SpeedCard(c, R.drawable.ic_arrow_down_24dp, stringResource(R.string.ui_home_download), downloadSpeed, Modifier.weight(1f))
-            SpeedCard(c, R.drawable.ic_arrow_up_24dp, stringResource(R.string.ui_home_upload), uploadSpeed, Modifier.weight(1f))
-        }
-        if (ended) {
-            Spacer(Modifier.height(12.dp))
-            AlertCard(c)
-        }
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(24.dp))
+        PowerToggle(c = c, on = isRunning, busy = isStarting, enabled = !preparing, onClick = onToggle)
+        Spacer(Modifier.height(20.dp))
 
         val shownStatus = when {
             isRunning || isScanning || isStarting -> statusText
@@ -450,8 +451,10 @@ private fun ConnectionTab(
                 }
             }
         }
-        Spacer(Modifier.height(28.dp))
-        PowerToggle(c = c, on = isRunning, busy = isStarting, enabled = !preparing, onClick = onToggle)
+        if (ended) {
+            Spacer(Modifier.height(12.dp))
+            AlertCard(c)
+        }
         Spacer(Modifier.weight(1f))
 
         Surface(
@@ -481,7 +484,74 @@ private fun ConnectionTab(
                 Text(text = "\u203A", color = c.text, fontSize = 30.sp)
             }
         }
+        Spacer(Modifier.height(12.dp))
+        SubscriptionMiniCard(c, title, info, isUpdating, onUpdate)
         Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** Compact subscription card for Home: name, used / total, bar, days left and an update button. */
+@Composable
+private fun SubscriptionMiniCard(
+    c: UiColors,
+    title: String,
+    info: SubscriptionInfoUiModel?,
+    isUpdating: Boolean,
+    onUpdate: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = c.card,
+        border = BorderStroke(1.dp, c.idle.copy(alpha = 0.25f)),
+    ) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    color = c.text,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (isUpdating) {
+                    CircularProgressIndicator(Modifier.size(20.dp), color = c.accent, strokeWidth = 2.dp)
+                } else {
+                    TextButton(onClick = onUpdate) {
+                        Text(stringResource(R.string.ui_home_update_sub), color = c.accent, fontSize = 14.sp)
+                    }
+                }
+            }
+            if (info != null) {
+                val total = if (info.totalBytes > 0L) info.totalBytes.toTrafficString() else "\u221E"
+                Text(
+                    text = "${info.usedBytes.toTrafficString()} / $total",
+                    color = if (info.trafficLow) c.danger else c.text,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                info.trafficFraction?.let { fraction ->
+                    Spacer(Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { fraction },
+                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                        color = if (info.trafficLow) c.danger else c.accent,
+                        trackColor = c.field,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                val days = info.expireMillis?.let { ((it - System.currentTimeMillis()) / 86_400_000L).coerceAtLeast(0L) }
+                Text(
+                    text = if (days != null && !info.expired) stringResource(R.string.ui_profile_days_left, days)
+                    else if (info.expired) stringResource(R.string.ui_home_expires)
+                    else stringResource(R.string.ui_home_no_expiry),
+                    color = if (info.expired) c.danger else c.subText,
+                    fontSize = 14.sp,
+                )
+            }
+        }
     }
 }
 
