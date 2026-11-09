@@ -72,7 +72,7 @@ object PhonixProvisioner {
     }
 
     /** Whether the profile, its endpoint and the servers are not all there yet: the setup is still the first one. */
-    private fun needsSetup(): Boolean {
+    fun needsSetup(): Boolean {
         if (PhonixPolicy.allowedSubs().isEmpty()) return false
         val aether = PhonixPolicy.findAetherProfile()?.second ?: return true
         if (aether.server.isNullOrBlank() || aether.serverPort.isNullOrBlank()) return true

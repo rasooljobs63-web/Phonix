@@ -193,6 +193,12 @@ class MainActivity : HelperBaseComponentActivity() {
                     lastTime = now
                 }
             }
+            // After a connection: a real-delay test of the server in use, so the latency shows
+            LaunchedEffect(uiState.isRunning) {
+                if (!uiState.isRunning) return@LaunchedEffect
+                kotlinx.coroutines.delay(1500L)
+                mainViewModel.testCurrentServerRealPing()
+            }
             var language by remember {
                 mutableStateOf(MmkvManager.decodeSettingsString(AppConfig.PREF_LANGUAGE, "auto") ?: "auto")
             }
@@ -231,8 +237,10 @@ class MainActivity : HelperBaseComponentActivity() {
                     serversRevision++
                 },
                 onToggle = {
-                    if (setupState == PhonixProvisioner.Setup.PREPARING) toast(R.string.ui_setup_wait)
-                    else handleFabAction()
+                    if (!uiState.isRunning && (setupState == PhonixProvisioner.Setup.PREPARING || PhonixProvisioner.needsSetup())) {
+                        PhonixProvisioner.kick()
+                        toast(R.string.ui_setup_wait)
+                    } else handleFabAction()
                 },
                 onUpdate = { mainViewModel.onAction(MainAction.UpdateSubscriptions) },
                 onGetNewIp = {
