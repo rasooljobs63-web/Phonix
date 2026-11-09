@@ -9,6 +9,14 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.alpha
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.rotate
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
@@ -290,7 +298,13 @@ internal fun SimpleHomeScreen(
     var tabIndex by rememberSaveable { mutableStateOf(0) }
     val tabs = HomeTab.values()
     val tab = tabs[tabIndex.coerceIn(0, tabs.size - 1)]
+    BackHandler(enabled = tab != HomeTab.HOME) { tabIndex = HomeTab.HOME.ordinal }
     val preparing = setupState == PhonixProvisioner.Setup.PREPARING
+    // The user name of the config: the part in brackets of a server name, else the subscription title
+    val userName = remember(servers, title) {
+        servers.firstNotNullOfOrNull { Regex("\\(([^)]+)\\)").find(it.name)?.groupValues?.get(1)?.trim()?.takeIf { n -> n.isNotEmpty() } }
+            ?: title
+    }
     // The time is over, or the traffic is used up
     val ended = info != null && (info.expired || (info.totalBytes > 0L && info.usedBytes >= info.totalBytes))
     var showEnded by rememberSaveable { mutableStateOf(false) }
@@ -319,7 +333,7 @@ internal fun SimpleHomeScreen(
                     onToggle = onToggle,
                     onOpenServers = { tabIndex = HomeTab.SERVERS.ordinal },
                     onMenu = { tabIndex = HomeTab.MENU.ordinal },
-                    title = title,
+                    title = userName,
                     info = info,
                     isUpdating = isUpdating,
                     onUpdate = onUpdate,
@@ -356,7 +370,6 @@ internal fun SimpleHomeScreen(
                 )
             }
         }
-        BottomNav(c = c, selected = tab, onSelect = { tabIndex = it.ordinal })
     }
 
     if (showEnded) {
@@ -402,6 +415,14 @@ private fun ConnectionTab(
         setupState == PhonixProvisioner.Setup.FAILED -> stringResource(R.string.ui_setup_failed)
         else -> statusText
     }
+    var seconds by remember { mutableStateOf(0L) }
+    LaunchedEffect(isRunning) {
+        seconds = 0L
+        while (isRunning) {
+            kotlinx.coroutines.delay(1000)
+            seconds += 1
+        }
+    }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -421,7 +442,7 @@ private fun ConnectionTab(
             )
             Column(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.TopStart)
                     .padding(16.dp)
                     .size(36.dp)
                     .clip(CircleShape)
@@ -432,8 +453,40 @@ private fun ConnectionTab(
                 repeat(3) { Box(Modifier.width(26.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color.White)) }
             }
         }
-        PowerToggle(c = c, on = isRunning, busy = isStarting, enabled = !preparing, onClick = onToggle)
-        Spacer(Modifier.height(20.dp))
+        PowerToggle(c = c, on = isRunning, busy = isStarting || isScanning, enabled = !preparing, onClick = onToggle)
+        // Own bar for the state of the app, under the power button
+        Box(Modifier.offset(y = (-18).dp).padding(horizontal = 20.dp)) {
+            GlowCard(c) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    if (preparing || isStarting) {
+                        CircularProgressIndicator(Modifier.size(16.dp), color = c.accent, strokeWidth = 2.dp)
+                    } else {
+                        Box(
+                            Modifier.size(14.dp).clip(CircleShape).background(
+                                when {
+                                    setupState == PhonixProvisioner.Setup.FAILED -> c.danger
+                                    isRunning -> Color(0xFF22C55E)
+                                    else -> c.accent
+                                }
+                            )
+                        )
+                    }
+                    Spacer(Modifier.size(10.dp))
+                    Text(
+                        text = shownStatus + if (isRunning && seconds > 0) "  \u2022  " + formatDuration(seconds) else "",
+                        color = c.text,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
         if (ended) {
             Box(Modifier.padding(horizontal = 20.dp)) { AlertCard(c) }
             Spacer(Modifier.height(12.dp))
@@ -443,30 +496,7 @@ private fun ConnectionTab(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (preparing) {
-                    CircularProgressIndicator(Modifier.size(18.dp), color = c.accent, strokeWidth = 2.dp)
-                } else {
-                    Box(
-                        Modifier.size(18.dp).clip(CircleShape).background(
-                            when {
-                                setupState == PhonixProvisioner.Setup.FAILED -> c.danger
-                                isRunning -> c.accent
-                                else -> Color(0xFF22C55E)
-                            }
-                        )
-                    )
-                }
-                Spacer(Modifier.size(8.dp))
-                Text(
-                    text = shownStatus,
-                    color = c.text,
-                    fontSize = 13.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Box(Modifier.width(1.dp).height(28.dp).background(c.idle.copy(alpha = 0.4f)))
-                Spacer(Modifier.size(12.dp))
+                Text(text = "\u2304 ", color = c.accent, fontSize = 16.sp)
                 Text(
                     text = locationName,
                     color = c.text,
@@ -474,8 +504,9 @@ private fun ConnectionTab(
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-                Text(text = " \u2304", color = c.accent, fontSize = 16.sp)
+                Text(text = locationLabel, color = c.subText, fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -600,36 +631,46 @@ private fun SpeedCard(c: UiColors, icon: Int, label: String, bytesPerSecond: Lon
     }
 }
 
-/** The big round power button of the reference design: neon ring, dark core and the power icon. */
+private fun formatDuration(total: Long): String =
+    "%02d:%02d:%02d".format(total / 3600, (total % 3600) / 60, total % 60)
+
+/** The big round power button: the ring spins while connecting and turns green when connected. */
 @Composable
 private fun PowerToggle(c: UiColors, on: Boolean, busy: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val ring = Brush.sweepGradient(listOf(c.accent, Color(0xFF9B3DFF), Color(0xFFFF4FD8), Color(0xFF9B3DFF), c.accent))
+    val green = Color(0xFF22C55E)
+    val angle by rememberInfiniteTransition(label = "spin").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart),
+        label = "spin",
+    )
+    val ring = when {
+        on && !busy -> Brush.sweepGradient(listOf(green, Color(0xFF86EFAC), green, Color(0xFF16A34A), green))
+        else -> Brush.sweepGradient(listOf(c.accent, Color(0xFF9B3DFF), Color(0xFFFF4FD8), Color(0xFF9B3DFF), c.accent))
+    }
+    val glow = if (on && !busy) green else if (busy) c.accent else Color(0xFF9B3DFF)
     Box(
         modifier = Modifier
             .offset(y = (-34).dp)
             .size(176.dp)
             .alpha(if (enabled) 1f else 0.5f)
             .clip(CircleShape)
-            .background(Brush.radialGradient(listOf((if (on) c.accent else Color(0xFF9B3DFF)).copy(alpha = 0.35f), Color.Transparent)))
+            .background(Brush.radialGradient(listOf(glow.copy(alpha = 0.35f), Color.Transparent)))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(150.dp).clip(CircleShape).background(ring).padding(7.dp)) {
-            Box(
-                Modifier.fillMaxSize().clip(CircleShape).background(c.background).border(BorderStroke(2.dp, c.accent.copy(alpha = 0.5f)), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (busy) {
-                    CircularProgressIndicator(Modifier.size(48.dp), color = c.accent, strokeWidth = 4.dp)
-                } else {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_power_24dp),
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = if (on) c.accent else Color.White,
-                    )
-                }
-            }
+        Box(Modifier.size(150.dp).rotate(if (busy) angle else 0f).clip(CircleShape).background(ring))
+        Box(
+            Modifier.size(136.dp).clip(CircleShape).background(c.background)
+                .border(BorderStroke(2.dp, glow.copy(alpha = 0.5f)), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_power_24dp),
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = if (on && !busy) green else Color.White,
+            )
         }
     }
 }
