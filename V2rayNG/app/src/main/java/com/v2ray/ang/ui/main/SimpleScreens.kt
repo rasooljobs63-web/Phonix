@@ -1,6 +1,8 @@
 package com.v2ray.ang.ui.main
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -22,6 +24,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -92,15 +96,15 @@ internal class UiColors(
 
 @Composable
 internal fun uiColors(): UiColors = UiColors(
-    background = Color(0xFF0C0720),
-    backgroundTop = Color(0xFF241150),
-    card = Color(0xFF1A1236),
-    inner = Color(0xFF241A4A),
-    field = Color(0xFF2B2057),
-    text = Color(0xFFF4F1FF),
-    subText = Color(0xFFA79DCB),
-    accent = Color(0xFF8B3DFF),
-    idle = Color(0xFF7A6FAE),
+    background = Color(0xFF020A2A),
+    backgroundTop = Color(0xFF04114A),
+    card = Color(0xFF081545),
+    inner = Color(0xFF0B1C5C),
+    field = Color(0xFF12266E),
+    text = Color(0xFFF2F7FF),
+    subText = Color(0xFF9FB4E8),
+    accent = Color(0xFF19D8FF),
+    idle = Color(0xFF7F95D6),
     danger = Color(0xFFFF6B7A),
 )
 
@@ -315,6 +319,7 @@ internal fun SimpleHomeScreen(
                     locationName = servers.firstOrNull { it.guid == selectedGuid }?.name ?: "\u2014",
                     onToggle = onToggle,
                     onOpenServers = { tabIndex = HomeTab.SERVERS.ordinal },
+                    onMenu = { tabIndex = HomeTab.MENU.ordinal },
                     title = title,
                     info = info,
                     isUpdating = isUpdating,
@@ -384,113 +389,114 @@ private fun ConnectionTab(
     locationName: String,
     onToggle: () -> Unit,
     onOpenServers: () -> Unit,
+    onMenu: () -> Unit,
     title: String,
     info: SubscriptionInfoUiModel?,
     isUpdating: Boolean,
     onUpdate: () -> Unit,
 ) {
     val preparing = setupState == PhonixProvisioner.Setup.PREPARING
+    val shownStatus = when {
+        preparing -> stringResource(R.string.ui_setup_wait)
+        isRunning || isScanning || isStarting -> statusText
+        setupState == PhonixProvisioner.Setup.READY -> stringResource(R.string.ui_setup_ready)
+        setupState == PhonixProvisioner.Setup.FAILED -> stringResource(R.string.ui_setup_failed)
+        else -> statusText
+    }
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = stringResource(R.string.ui_nav_home),
-            color = c.text,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(24.dp))
+        // Header picture (logo + mountain) fading into the background, hamburger at the top
+        Box(Modifier.fillMaxWidth()) {
+            Image(
+                painter = painterResource(R.drawable.phonix_header),
+                contentDescription = null,
+                modifier = Modifier.fillMaxWidth().aspectRatio(485f / 330f),
+                contentScale = ContentScale.Crop,
+            )
+            Box(
+                Modifier.matchParentSize().background(
+                    Brush.verticalGradient(0.6f to Color.Transparent, 1f to c.background)
+                )
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onMenu),
+                verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                repeat(3) { Box(Modifier.width(26.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color.White)) }
+            }
+        }
         PowerToggle(c = c, on = isRunning, busy = isStarting, enabled = !preparing, onClick = onToggle)
         Spacer(Modifier.height(20.dp))
-
-        val shownStatus = when {
-            isRunning || isScanning || isStarting -> statusText
-            setupState == PhonixProvisioner.Setup.READY -> stringResource(R.string.ui_setup_ready)
-            setupState == PhonixProvisioner.Setup.FAILED -> stringResource(R.string.ui_setup_failed)
-            else -> statusText
-        }
-        Text(
-            text = shownStatus,
-            color = when {
-                isRunning -> c.accent
-                setupState == PhonixProvisioner.Setup.READY -> c.text
-                setupState == PhonixProvisioner.Setup.FAILED -> c.danger
-                else -> c.subText
-            },
-            fontSize = if (isRunning) 28.sp else 17.sp,
-            fontWeight = if (isRunning) FontWeight.Bold else FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (preparing) {
-            Spacer(Modifier.height(16.dp))
-            Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = c.card) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CircularProgressIndicator(Modifier.size(28.dp), color = c.accent, strokeWidth = 3.dp)
-                    Spacer(Modifier.size(16.dp))
-                    Column {
-                        Text(
-                            text = stringResource(R.string.ui_setup_title),
-                            color = c.text,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = stringResource(R.string.ui_setup_wait),
-                            color = c.subText,
-                            fontSize = 15.sp,
-                        )
-                    }
-                }
-            }
-        }
         if (ended) {
+            Box(Modifier.padding(horizontal = 20.dp)) { AlertCard(c) }
             Spacer(Modifier.height(12.dp))
-            AlertCard(c)
         }
-        Spacer(Modifier.weight(1f))
-
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .clickable(onClick = onOpenServers),
-            shape = RoundedCornerShape(22.dp),
-            color = c.card,
-            border = BorderStroke(1.dp, c.idle.copy(alpha = 0.25f)),
-        ) {
+        GlowCard(c, Modifier.padding(horizontal = 20.dp).clickable(onClick = onOpenServers)) {
             Row(
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(text = locationLabel, color = c.subText, fontSize = 13.sp)
-                    Text(
-                        text = locationName,
-                        color = c.text,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                if (preparing) {
+                    CircularProgressIndicator(Modifier.size(18.dp), color = c.accent, strokeWidth = 2.dp)
+                } else {
+                    Box(
+                        Modifier.size(18.dp).clip(CircleShape).background(
+                            when {
+                                setupState == PhonixProvisioner.Setup.FAILED -> c.danger
+                                isRunning -> c.accent
+                                else -> Color(0xFF22C55E)
+                            }
+                        )
                     )
                 }
-                Text(text = "\u203A", color = c.text, fontSize = 30.sp)
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    text = shownStatus,
+                    color = c.text,
+                    fontSize = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(Modifier.width(1.dp).height(28.dp).background(c.idle.copy(alpha = 0.4f)))
+                Spacer(Modifier.size(12.dp))
+                Text(
+                    text = locationName,
+                    color = c.text,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(text = " \u2304", color = c.accent, fontSize = 16.sp)
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
         SubscriptionMiniCard(c, title, info, isUpdating, onUpdate)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
     }
 }
 
-/** Compact subscription card for Home: name, used / total, bar, days left and an update button. */
+/** Rounded glass card with a cyan-to-purple border, as in the reference design. */
+@Composable
+private fun GlowCard(c: UiColors, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        color = c.card.copy(alpha = 0.85f),
+        border = BorderStroke(1.5.dp, Brush.horizontalGradient(listOf(c.accent.copy(alpha = 0.8f), Color(0xFF9B3DFF).copy(alpha = 0.8f)))),
+    ) { content() }
+}
+
+/** Subscription card of Home: title with crown, update pill, traffic bar, expiry and used / total. */
 @Composable
 private fun SubscriptionMiniCard(
     c: UiColors,
@@ -499,14 +505,10 @@ private fun SubscriptionMiniCard(
     isUpdating: Boolean,
     onUpdate: () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = c.card,
-        border = BorderStroke(1.dp, c.idle.copy(alpha = 0.25f)),
-    ) {
-        Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
+    GlowCard(c, Modifier.padding(horizontal = 20.dp)) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "\uD83D\uDC51 ", fontSize = 16.sp)
                 Text(
                     text = title,
                     color = c.text,
@@ -516,40 +518,49 @@ private fun SubscriptionMiniCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (isUpdating) {
-                    CircularProgressIndicator(Modifier.size(20.dp), color = c.accent, strokeWidth = 2.dp)
-                } else {
-                    TextButton(onClick = onUpdate) {
-                        Text(stringResource(R.string.ui_home_update_sub), color = c.accent, fontSize = 14.sp)
+                Surface(
+                    modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable(enabled = !isUpdating, onClick = onUpdate),
+                    shape = RoundedCornerShape(20.dp),
+                    color = c.inner,
+                    border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(c.accent, Color(0xFF9B3DFF)))),
+                ) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (isUpdating) CircularProgressIndicator(Modifier.size(16.dp), color = c.accent, strokeWidth = 2.dp)
+                        else Text("\u21BB ", color = c.accent, fontSize = 16.sp)
+                        Spacer(Modifier.size(4.dp))
+                        Text(stringResource(R.string.ui_home_update_sub), color = c.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
             if (info != null) {
-                val total = if (info.totalBytes > 0L) info.totalBytes.toTrafficString() else "\u221E"
-                Text(
-                    text = "${info.usedBytes.toTrafficString()} / $total",
-                    color = if (info.trafficLow) c.danger else c.text,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
+                Spacer(Modifier.height(14.dp))
+                LinearProgressIndicator(
+                    progress = { info.trafficFraction ?: 0f },
+                    modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
+                    color = if (info.trafficLow) c.danger else c.accent,
+                    trackColor = c.field,
                 )
-                info.trafficFraction?.let { fraction ->
-                    Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = { fraction },
-                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                        color = if (info.trafficLow) c.danger else c.accent,
-                        trackColor = c.field,
+                Spacer(Modifier.height(12.dp))
+                val total = if (info.totalBytes > 0L) info.totalBytes.toTrafficString() else "\u221E"
+                val days = info.expireMillis?.let { ((it - System.currentTimeMillis()) / 86_400_000L).coerceAtLeast(0L) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (days != null && !info.expired) stringResource(R.string.ui_profile_days_left, days)
+                        else if (info.expired) stringResource(R.string.ui_home_expires)
+                        else stringResource(R.string.ui_home_no_expiry),
+                        color = if (info.expired) c.danger else c.text,
+                        fontSize = 13.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(Modifier.width(1.dp).height(22.dp).background(c.idle.copy(alpha = 0.4f)))
+                    Spacer(Modifier.size(12.dp))
+                    Text(
+                        text = "${info.usedBytes.toTrafficString()} / $total",
+                        color = if (info.trafficLow) c.danger else c.text,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-                val days = info.expireMillis?.let { ((it - System.currentTimeMillis()) / 86_400_000L).coerceAtLeast(0L) }
-                Text(
-                    text = if (days != null && !info.expired) stringResource(R.string.ui_profile_days_left, days)
-                    else if (info.expired) stringResource(R.string.ui_home_expires)
-                    else stringResource(R.string.ui_home_no_expiry),
-                    color = if (info.expired) c.danger else c.subText,
-                    fontSize = 14.sp,
-                )
             }
         }
     }
@@ -590,39 +601,33 @@ private fun SpeedCard(c: UiColors, icon: Int, label: String, bytesPerSecond: Lon
     }
 }
 
-/** The switch of the reference design: a pill whose round knob, with the power icon, sits at one end or the other. */
+/** The big round power button of the reference design: neon ring, dark core and the power icon. */
 @Composable
 private fun PowerToggle(c: UiColors, on: Boolean, busy: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    // The knob is placed by its offset: the control keeps the same direction in Persian as in English
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        val knobOffset by animateDpAsState(targetValue = if (on) 140.dp else 0.dp, label = "knob")
-        Box(
-            modifier = Modifier
-                .width(216.dp)
-                .height(76.dp)
-                .alpha(if (enabled) 1f else 0.5f)
-                .clip(RoundedCornerShape(38.dp))
-                .background(if (on) c.accent else c.inner)
-                .border(BorderStroke(1.dp, c.idle.copy(alpha = 0.4f)), RoundedCornerShape(38.dp))
-                .clickable(enabled = enabled, onClick = onClick)
-                .padding(6.dp),
-        ) {
+    val ring = Brush.sweepGradient(listOf(c.accent, Color(0xFF9B3DFF), Color(0xFFFF4FD8), Color(0xFF9B3DFF), c.accent))
+    Box(
+        modifier = Modifier
+            .offset(y = (-34).dp)
+            .size(176.dp)
+            .alpha(if (enabled) 1f else 0.5f)
+            .clip(CircleShape)
+            .background(Brush.radialGradient(listOf((if (on) c.accent else Color(0xFF9B3DFF)).copy(alpha = 0.35f), Color.Transparent)))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.size(150.dp).clip(CircleShape).background(ring).padding(7.dp)) {
             Box(
-                modifier = Modifier
-                    .offset(x = knobOffset)
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(Color.White),
+                Modifier.fillMaxSize().clip(CircleShape).background(c.background).border(BorderStroke(2.dp, c.accent.copy(alpha = 0.5f)), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 if (busy) {
-                    CircularProgressIndicator(Modifier.size(30.dp), color = c.accent, strokeWidth = 3.dp)
+                    CircularProgressIndicator(Modifier.size(48.dp), color = c.accent, strokeWidth = 4.dp)
                 } else {
                     Icon(
                         painter = painterResource(R.drawable.ic_power_24dp),
                         contentDescription = null,
-                        modifier = Modifier.size(32.dp),
-                        tint = if (on) c.accent else c.idle,
+                        modifier = Modifier.size(64.dp),
+                        tint = if (on) c.accent else Color.White,
                     )
                 }
             }
@@ -982,36 +987,26 @@ private fun MenuTab(
 
 @Composable
 private fun BottomNav(c: UiColors, selected: HomeTab, onSelect: (HomeTab) -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        shape = RoundedCornerShape(26.dp),
-        color = c.card,
-        border = BorderStroke(1.dp, c.idle.copy(alpha = 0.25f)),
-    ) {
+    GlowCard(c, Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             NavItem(c, R.drawable.ic_nav_home, R.string.ui_nav_home, selected == HomeTab.HOME) { onSelect(HomeTab.HOME) }
-            NavItem(c, R.drawable.ic_nav_servers, R.string.ui_nav_servers, selected == HomeTab.SERVERS) { onSelect(HomeTab.SERVERS) }
             NavItem(c, R.drawable.ic_nav_profile, R.string.ui_nav_profile, selected == HomeTab.PROFILE) { onSelect(HomeTab.PROFILE) }
-            NavItem(c, R.drawable.ic_nav_menu, R.string.ui_nav_menu, selected == HomeTab.MENU) { onSelect(HomeTab.MENU) }
         }
     }
 }
 
 @Composable
 private fun NavItem(c: UiColors, icon: Int, label: Int, selected: Boolean, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(52.dp)) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = stringResource(label),
-            modifier = Modifier.size(26.dp),
-            tint = if (selected) c.accent else c.idle,
-        )
+    Column(
+        modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(horizontal = 24.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(painter = painterResource(icon), contentDescription = null, modifier = Modifier.size(28.dp), tint = if (selected) c.accent else c.idle)
+        Text(stringResource(label), color = if (selected) c.accent else c.idle, fontSize = 12.sp)
     }
 }
 
