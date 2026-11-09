@@ -2,6 +2,8 @@ package com.v2ray.ang.ui.main
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +17,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -94,13 +97,13 @@ internal fun SubscriptionInfoCard(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 2.dp),
         shape = MaterialTheme.shapes.medium,
         // Almost opaque: the list scrolls underneath without showing through readably.
         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = CARD_ALPHA),
         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
-        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 2.dp, bottom = 10.dp)) {
+        Column(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 6.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = model.title ?: fallbackTitle,
@@ -128,11 +131,15 @@ internal fun SubscriptionInfoCard(
                         onClick = { onOpenLink(url) },
                     )
                 }
-                CardIconButton(
-                    iconRes = R.drawable.ic_refresh_24dp,
-                    contentDescription = stringResource(R.string.title_sub_update),
+                TextButton(
                     onClick = onRefresh,
-                )
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp),
+                ) {
+                    Icon(painterResource(R.drawable.ic_refresh_24dp), null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.sub_info_update), style = MaterialTheme.typography.labelMedium)
+                }
             }
 
             // One semantics node for the read-only figures so TalkBack reads them in one go.
@@ -144,7 +151,7 @@ internal fun SubscriptionInfoCard(
             ) {
                 StatsRow(model)
                 model.trafficFraction?.let { fraction ->
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(3.dp))
                     LinearProgressIndicator(
                         progress = { fraction },
                         modifier = Modifier

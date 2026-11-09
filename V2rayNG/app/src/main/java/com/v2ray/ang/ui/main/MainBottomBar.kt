@@ -41,9 +41,39 @@ import com.v2ray.ang.ui.compose.colorFabInactiveDark
 import com.v2ray.ang.ui.compose.colorFabInactiveLight
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.shape.CircleShape
 @Composable
 fun MainBottomBar(
     displayText: String,
+    onAction: (MainAction) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = { onAction(MainAction.TestCurrentServer) })
+    ) {
+        AppDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = displayText,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.semantics { contentDescription = displayText }
+            )
+        }
+    }
+}
+
+/** Big on/off switch shown at the top of the home page. */
+@Composable
+fun PowerToggle(
     isRunning: Boolean,
     isDarkTheme: Boolean,
     onAction: (MainAction) -> Unit
@@ -52,54 +82,21 @@ fun MainBottomBar(
     val rotationAnim = remember { Animatable(0f) }
 
     LaunchedEffect(isRunning) {
-        if (!isRunning) {
-            rotationAnim.snapTo(0f)
-        }
+        if (!isRunning) rotationAnim.snapTo(0f)
     }
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface)
-                .clickable(onClick = { onAction(MainAction.TestCurrentServer) })
-                .windowInsetsPadding(WindowInsets.navigationBars)
-        ) {
-            AppDivider()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = displayText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.semantics {
-                        contentDescription = displayText
-                    }
-                )
-            }
-        }
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
         FloatingActionButton(
             onClick = {
                 if (!isRunning) {
                     scope.launch {
-                        rotationAnim.animateTo(
-                            targetValue = 720f,
-                            animationSpec = tween(durationMillis = 3000)
-                        )
+                        rotationAnim.animateTo(targetValue = 720f, animationSpec = tween(durationMillis = 3000))
                     }
                 }
                 onAction(MainAction.ToggleService)
             },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = 24.dp)
-                .offset(y = (-28).dp)
-                .navigationBarsPadding(),
+            modifier = Modifier.size(88.dp),
+            shape = CircleShape,
             containerColor = if (isRunning) colorFabActive
             else if (isDarkTheme) colorFabInactiveDark
             else colorFabInactiveLight
@@ -107,12 +104,10 @@ fun MainBottomBar(
             Icon(
                 painter = if (isRunning) painterResource(R.drawable.ic_stop_24dp)
                 else painterResource(R.drawable.ic_play_24dp),
-                contentDescription = stringResource(
-                    if (isRunning) R.string.acc_stop else R.string.acc_start
-                ),
+                contentDescription = stringResource(if (isRunning) R.string.acc_stop else R.string.acc_start),
                 tint = Color.White,
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(40.dp)
                     .graphicsLayer { rotationZ = rotationAnim.value }
             )
         }

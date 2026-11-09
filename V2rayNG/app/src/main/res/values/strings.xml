@@ -796,6 +796,7 @@
     <string name="sub_info_open_page">Open subscription page</string>
     <string name="sub_info_traffic" translatable="false">%1$s / %2$s</string>
     <string name="sub_info_unlimited">Unlimited</string>
+    <string name="sub_info_update">Update subscription</string>
 
     <!-- Simplified UI -->
     <string name="ui_key_title">Add your key</string>
@@ -865,4 +866,12 @@
     <string name="ui_profile_remaining">Remaining</string>
     <string name="ui_profile_days_left">%1$d days left</string>
     <string name="ui_ended_title">Warning</string>
+    <string name="nav_home">Home</string>
+    <string name="server_bar_ready">Server ready to connect</string>
+    <string name="server_bar_connected">Connection established.</string>
+    <string name="server_bar_no_server">No server selected</string>
+    <string name="server_bar_choose">Choose server</string>
+    <string name="nav_account">Account</string>
+    <string name="account_no_info">No subscription info available</string>
+    <string name="account_update_sub">Update subscription</string>
 </resources>

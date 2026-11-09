@@ -788,6 +788,7 @@
     <string name="sub_info_open_support">باز کردن لینک پشتیبانی</string>
     <string name="sub_info_open_page">باز کردن صفحه اطلاعات اشتراک</string>
     <string name="sub_info_unlimited">نامحدود</string>
+    <string name="sub_info_update">بروزرسانی اشتراک</string>
 
     <!-- رابط کاربری ساده‌شده -->
     <string name="ui_key_title">کلید خود را اضافه کنید</string>
@@ -857,4 +858,12 @@
     <string name="ui_profile_remaining">باقی‌مانده</string>
     <string name="ui_profile_days_left">%1$d روز باقی مانده</string>
     <string name="ui_ended_title">هشدار</string>
+    <string name="nav_home">خانه</string>
+    <string name="server_bar_ready">سرور آماده اتصال است</string>
+    <string name="server_bar_connected">اتصال برقرار شد.</string>
+    <string name="server_bar_no_server">سروری انتخاب نشده</string>
+    <string name="server_bar_choose">انتخاب سرور</string>
+    <string name="nav_account">حساب کاربری</string>
+    <string name="account_no_info">اطلاعات اشتراک موجود نیست</string>
+    <string name="account_update_sub">بروزرسانی اشتراک</string>
 </resources>

@@ -8,11 +8,14 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,6 +52,13 @@ fun MainScreen(
     val isLoading by mainViewModel.isLoading.collectAsStateWithLifecycle()
     val isRunning = uiState.isRunning
     val displayText = mainViewModel.formatStatus(uiState.status)
+    // Run a real-delay test shortly after the connection is established.
+    LaunchedEffect(isRunning) {
+        if (isRunning) {
+            kotlinx.coroutines.delay(1500)
+            mainViewModel.testCurrentServerRealPing()
+        }
+    }
     val selectedGuid = uiState.selectedGuid
     val doubleColumnDisplay = uiState.doubleColumnDisplay
     val confirmRemove = uiState.confirmRemove
@@ -67,7 +77,7 @@ fun MainScreen(
     }
 
     val isDarkTheme = LocalDarkTheme.current
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -153,18 +163,7 @@ fun MainScreen(
         QRCodeDialog(bitmap = shareQRCodeBitmap, onDismiss = { onAction(MainAction.DismissQRCodeDialog) })
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            MainDrawerContent(
-                drawerState = drawerState,
-                onNavigate = { route ->
-                    scope.launch { drawerState.close() }
-                    onNavigate(route)
-                }
-            )
-        }
-    ) {
+    run {
         Scaffold(
             contentWindowInsets = ScaffoldDefaults.contentWindowInsets,
             topBar = {
@@ -182,7 +181,6 @@ fun MainScreen(
                         showSearch = false
                     },
                     onSearchToggle = { show: Boolean -> showSearch = show },
-                    onMenuClick = { scope.launch { drawerState.open() } },
                     onAction = onAction,
                     onMoreMenuAction = { action ->
                         when (action) {
@@ -201,23 +199,49 @@ fun MainScreen(
                 )
             },
             bottomBar = {
-                MainBottomBar(
-                    displayText = displayText,
-                    isRunning = isRunning,
-                    isDarkTheme = isDarkTheme,
-                    onAction = onAction
-                )
+                Column {
+                    NavigationBar {
+                        NavigationBarItem(
+                            selected = tab == 0,
+                            onClick = { tab = 0 },
+                            icon = { Icon(painterResource(R.drawable.ic_play_24dp), contentDescription = null) },
+                            label = { Text(stringResource(R.string.nav_home)) }
+                        )
+                        NavigationBarItem(
+                            selected = tab == 1,
+                            onClick = { tab = 1 },
+                            icon = { Icon(painterResource(R.drawable.ic_subscriptions_24dp), contentDescription = null) },
+                            label = { Text(stringResource(R.string.nav_account)) }
+                        )
+                    }
+                }
             },
             floatingActionButton = {},
         ) { innerPadding ->
             val layoutDirection = LocalLayoutDirection.current
 
-            if (groups.isNotEmpty()) {
+            if (tab == 1) {
+                AccountScreen(
+                    group = groups.getOrNull(pagerState.currentPage.coerceIn(0, (groups.size - 1).coerceAtLeast(0))),
+                    onOpenLink = { url -> onAction(MainAction.OpenSubscriptionLink(url)) },
+                    onUpdate = { onAction(MainAction.UpdateSubscriptions) },
+                    onNavigate = onNavigate,
+                    modifier = Modifier.padding(innerPadding)
+                )
+            } else if (groups.isNotEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
                 ) {
+                    PowerToggle(isRunning = isRunning, isDarkTheme = isDarkTheme, onAction = onAction)
+                    ServerStatusBar(
+                        isRunning = isRunning,
+                        statusDetail = if (isRunning && (uiState.status is MainStatus.ConnectionTest || uiState.status == MainStatus.Testing)) displayText else "",
+                        selectedGuid = selectedGuid,
+                        groupId = groups.getOrNull(pagerState.currentPage)?.id,
+                        onSelectServer = { guid -> onAction(MainAction.SelectServer(guid)) }
+                    )
                     if (groups.size > 1) {
                         GroupTabBar(
                             groups = groups,
@@ -242,35 +266,16 @@ fun MainScreen(
                         key = { page -> groups.getOrNull(page)?.id ?: "group-page-$page" }
                     ) { page ->
                         val group = groups.getOrNull(page) ?: return@HorizontalPager
-
-                        GroupPagerPage(
-                            groupId = group.id,
-                            mainViewModel = mainViewModel,
-                            selectedGuid = selectedGuid,
-                            locateTarget = uiState.locateTarget,
-                            doubleColumnDisplay = doubleColumnDisplay,
-                            searchQuery = searchQuery,
-                            lazyListStates = lazyListStates,
-                            lazyGridStates = lazyGridStates,
-                            onSelectServer = { guid -> onAction(MainAction.SelectServer(guid)) },
-                            onEditServer = { guid, profile -> onAction(MainAction.EditServer(guid, profile)) },
-                            onShareServer = { guid, profile ->
-                                shareTarget = Triple(guid, profile, false)
-                            },
-                            onMoreServer = { guid, profile ->
-                                shareTarget = Triple(guid, profile, true)
-                            },
-                            onRemoveServer = removeServer,
-                            usageInfo = group.usageInfo,
-                            groupTitle = group.remarks,
-                            onOpenLink = { url -> onAction(MainAction.OpenSubscriptionLink(url)) },
-                            contentPadding = PaddingValues(
-                                start = 0.dp,
-                                top = 0.dp,
-                                end = 0.dp,
-                                bottom = 80.dp
+                        // Phonix: the home page only shows the subscription box; servers are picked from the server bar.
+                        group.usageInfo?.let { info ->
+                            SubscriptionInfoCard(
+                                info = info,
+                                fallbackTitle = group.remarks,
+                                onOpenLink = { url -> onAction(MainAction.OpenSubscriptionLink(url)) },
+                                onRefresh = { onAction(MainAction.UpdateGroupSubscription(group.id)) },
+                                modifier = Modifier.padding(top = 4.dp)
                             )
-                        )
+                        }
                     }
                 }
             }
